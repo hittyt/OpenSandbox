@@ -1,0 +1,66 @@
+name: Execd Tests
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'components/execd/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.0'
+
+      - name: Run golint
+        run: |
+          cd components/execd
+          make golint
+
+      - name: Build
+        run: |
+          cd components/execd
+          make build
+
+      - name: Run tests
+        run: |
+          cd components/execd
+          make test
+
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.0'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Build
+        run: |
+          cd components/execd
+          make build
+
+      - name: Run smoke test
+        run: |
+          cd components/execd
+          chmod +x tests/smoke.sh
+          ./tests/smoke.sh
+          
+          sleep 5
+          cat execd.log
+          cat /tmp/jupyter.log
+          curl -v localhost:44772/ping
