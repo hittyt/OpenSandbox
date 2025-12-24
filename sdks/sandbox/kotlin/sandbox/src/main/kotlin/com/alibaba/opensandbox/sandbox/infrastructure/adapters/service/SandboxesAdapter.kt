@@ -57,11 +57,21 @@ internal class SandboxesAdapter(
         metadata: Map<String, String>,
         timeout: Duration,
         resource: Map<String, String>,
+        extensions: Map<String, String>,
     ): SandboxCreateResponse {
         logger.info("Creating sandbox with image: {}", spec.image)
 
         return try {
-            val createRequest = SandboxModelConverter.toApiCreateSandboxRequest(spec, entrypoint, env, metadata, timeout, resource)
+            val createRequest =
+                SandboxModelConverter.toApiCreateSandboxRequest(
+                    spec = spec,
+                    entrypoint = entrypoint,
+                    env = env,
+                    metadata = metadata,
+                    timeout = timeout,
+                    resource = resource,
+                    extensions = extensions,
+                )
             val apiResponse = api.sandboxesPost(createRequest)
             val response = apiResponse.toSandboxCreateResponse()
 

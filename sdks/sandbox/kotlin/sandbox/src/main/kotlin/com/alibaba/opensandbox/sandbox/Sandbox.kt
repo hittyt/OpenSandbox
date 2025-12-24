@@ -33,7 +33,6 @@ import com.alibaba.opensandbox.sandbox.domain.services.Health
 import com.alibaba.opensandbox.sandbox.domain.services.Metrics
 import com.alibaba.opensandbox.sandbox.domain.services.Sandboxes
 import com.alibaba.opensandbox.sandbox.infrastructure.factory.AdapterFactory
-import okhttp3.ConnectionPool
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.OffsetDateTime
@@ -145,12 +144,16 @@ class Sandbox internal constructor(
          * Creates a sandbox instance with the provided configuration.
          *
          * @param imageSpec Container image specification
+         * @param entrypoint Sandbox entrypoint command
          * @param env Environment variables (optional)
          * @param metadata Metadata for the sandbox (optional)
-         * @param timeout Sandbox timeout in seconds
+         * @param timeout Sandbox timeout (automatic termination time)
+         * @param readyTimeout Timeout for waiting for sandbox readiness
          * @param resource Resource limits (optional)
          * @param connectionConfig Connection configuration
          * @param healthCheck Custom health check function (optional)
+         * @param healthCheckPollingInterval Polling interval for readiness/health check
+         * @param extensions Optional extension parameters for server-side customized behaviors
          * @return Fully configured and ready Sandbox instance
          * @throws SandboxException if sandbox creation or initialization fails
          */
@@ -165,7 +168,7 @@ class Sandbox internal constructor(
             connectionConfig: ConnectionConfig,
             healthCheck: ((Sandbox) -> Boolean)? = null,
             healthCheckPollingInterval: Duration,
-            connectionPool: ConnectionPool? = null,
+            extensions: Map<String, String>,
         ): Sandbox {
             logger.info("Start creating sandbox with image: {} (timeout: {}s)", imageSpec.image, timeout.seconds)
 
@@ -184,6 +187,7 @@ class Sandbox internal constructor(
                         metadata,
                         timeout,
                         resource,
+                        extensions,
                     )
                 sandboxId = response.id
 
@@ -632,6 +636,14 @@ class Sandbox internal constructor(
         private val metadata = mutableMapOf<String, String>()
 
         /**
+         * Optional extension parameters for server-side custom behaviors.
+         *
+         * This map is treated as opaque and is sent to the server as-is.
+         * Prefer namespaced keys (e.g. `storage.id`) to avoid collisions.
+         */
+        private val extensions = mutableMapOf<String, String>()
+
+        /**
          * Lifecycle config
          */
         private var timeout: Duration = Duration.ofSeconds(600)
@@ -805,6 +817,47 @@ class Sandbox internal constructor(
         }
 
         /**
+         * Adds a single extension parameter.
+         *
+         * Extensions are opaque client-side and are passed through to the server.
+         * Prefer stable, namespaced keys (e.g. `storage.id`).
+         *
+         * @throws InvalidArgumentException if [key] is blank
+         */
+        fun extension(
+            key: String,
+            value: String,
+        ): Builder {
+            if (key.isBlank()) {
+                throw InvalidArgumentException(
+                    message = "Extension key cannot be blank",
+                )
+            }
+            extensions[key] = value
+            return this
+        }
+
+        /**
+         * Adds multiple extension parameters.
+         *
+         * Extensions are opaque client-side and are passed through to the server.
+         */
+        fun extensions(extensions: Map<String, String>): Builder {
+            this.extensions.putAll(extensions)
+            return this
+        }
+
+        /**
+         * Configures extension parameters using a fluent configuration block.
+         *
+         * Extensions are opaque client-side and are passed through to the server.
+         */
+        fun extensions(configure: MutableMap<String, String>.() -> Unit): Builder {
+            extensions.configure()
+            return this
+        }
+
+        /**
          * Sets the sandbox timeout (automatic termination time).
          *
          * @param timeout Maximum sandbox lifetime
@@ -897,6 +950,7 @@ class Sandbox internal constructor(
                 timeout = timeout,
                 readyTimeout = readyTimeout,
                 resource = resource,
+                extensions = extensions,
                 connectionConfig = connectionConfig ?: ConnectionConfig.builder().build(),
                 healthCheckPollingInterval = healthCheckPollingInterval,
                 healthCheck = healthCheck,

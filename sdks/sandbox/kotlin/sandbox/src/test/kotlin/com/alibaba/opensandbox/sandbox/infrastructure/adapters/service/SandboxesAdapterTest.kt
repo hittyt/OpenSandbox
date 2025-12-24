@@ -26,8 +26,12 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.time.Duration
 import java.util.UUID
 
@@ -76,6 +80,7 @@ class SandboxesAdapterTest {
 
         // Execute
         val spec = SandboxImageSpec.builder().image("ubuntu:latest").build()
+        val extensions = mapOf("storage.id" to "abc123", "debug" to "true")
         val result =
             sandboxesAdapter.createSandbox(
                 spec = spec,
@@ -84,12 +89,21 @@ class SandboxesAdapterTest {
                 metadata = mapOf("meta" to "data"),
                 timeout = Duration.ofSeconds(600),
                 resource = mapOf("cpu" to "1"),
+                extensions = extensions,
             )
 
         // Verify request
         val request = mockWebServer.takeRequest()
         assertEquals("POST", request.method)
         assertEquals("/sandboxes", request.path)
+        val requestBody = request.body.readUtf8()
+        assertTrue(requestBody.isNotBlank(), "request body should not be blank")
+
+        val payload = Json.parseToJsonElement(requestBody).jsonObject
+        val gotExtensions = payload["extensions"]?.jsonObject
+        assertNotNull(gotExtensions, "extensions should be present in createSandbox request")
+        assertEquals("abc123", gotExtensions!!["storage.id"]!!.jsonPrimitive.content)
+        assertEquals("true", gotExtensions["debug"]!!.jsonPrimitive.content)
 
         // Verify response
         assertEquals(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"), result.id)

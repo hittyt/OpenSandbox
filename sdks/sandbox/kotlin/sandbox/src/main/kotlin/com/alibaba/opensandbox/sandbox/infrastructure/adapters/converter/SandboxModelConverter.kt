@@ -73,6 +73,7 @@ internal object SandboxModelConverter {
         metadata: Map<String, String>,
         timeout: Duration,
         resource: Map<String, String>,
+        extensions: Map<String, String>,
     ): CreateSandboxRequest {
         return CreateSandboxRequest(
             image = spec.toApiImageSpec(),
@@ -81,6 +82,7 @@ internal object SandboxModelConverter {
             metadata = metadata,
             timeout = timeout.seconds.toInt(),
             resourceLimits = resource,
+            extensions = extensions,
         )
     }
 

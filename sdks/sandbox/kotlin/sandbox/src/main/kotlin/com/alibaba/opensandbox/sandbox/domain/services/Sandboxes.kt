@@ -36,8 +36,14 @@ interface Sandboxes {
     /**
      * Creates a new sandbox with the specified configuration.
      *
-     * @param spec Image specification for the sandbox
-     * @return Sandbox create response
+     * @param spec Container image specification for provisioning the sandbox
+     * @param entrypoint The command to run as the sandbox's main process (e.g. `["python", "/app/main.py"]`)
+     * @param env Environment variables injected into the sandbox runtime
+     * @param metadata User-defined metadata used for management and filtering
+     * @param timeout Sandbox lifetime. The server may terminate the sandbox when it expires
+     * @param resource Runtime resource limits (e.g. cpu/memory). Exact semantics are server-defined
+     * @param extensions Opaque extension parameters passed through to the server as-is. Prefer namespaced keys
+     * @return Sandbox creation response containing the sandbox id
      */
     fun createSandbox(
         spec: SandboxImageSpec,
@@ -46,6 +52,7 @@ interface Sandboxes {
         metadata: Map<String, String>,
         timeout: Duration,
         resource: Map<String, String>,
+        extensions: Map<String, String>,
     ): SandboxCreateResponse
 
     /**
