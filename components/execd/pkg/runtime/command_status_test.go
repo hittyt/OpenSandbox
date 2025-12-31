@@ -67,52 +67,36 @@ func TestGetCommandOutput_Completed(t *testing.T) {
 	tmpDir := t.TempDir()
 	session := "sess-done"
 	stdoutPath := filepath.Join(tmpDir, session+".stdout")
-	stderrPath := filepath.Join(tmpDir, session+".stderr")
 
 	stdoutContent := "hello stdout"
-	stderrContent := "oops stderr"
 	if err := os.WriteFile(stdoutPath, []byte(stdoutContent), 0o644); err != nil {
 		t.Fatalf("write stdout: %v", err)
-	}
-	if err := os.WriteFile(stderrPath, []byte(stderrContent), 0o644); err != nil {
-		t.Fatalf("write stderr: %v", err)
 	}
 
 	started := time.Now().Add(-2 * time.Second)
 	finished := time.Now()
 	exitCode := 0
 	kernel := &commandKernel{
-		pid:        456,
-		stdoutPath: stdoutPath,
-		stderrPath: stderrPath,
-		startedAt:  started,
-		finishedAt: &finished,
-		exitCode:   &exitCode,
-		errMsg:     "",
-		running:    false,
+		pid:          456,
+		stdoutPath:   stdoutPath,
+		isBackground: true,
+		startedAt:    started,
+		finishedAt:   &finished,
+		exitCode:     &exitCode,
+		errMsg:       "",
+		running:      false,
 	}
 	c.storeCommandKernel(session, kernel)
 
-	output, err := c.GetCommandOutput(session)
+	output, cursor, err := c.SeekBackgroundCommandOutput(session, 0)
 	if err != nil {
 		t.Fatalf("GetCommandOutput error: %v", err)
 	}
-	if output.Running {
-		t.Fatalf("expected running=false")
+
+	if cursor <= 0 {
+		t.Fatalf("expected cursor>=0")
 	}
-	if output.ExitCode == nil || *output.ExitCode != 0 {
-		t.Fatalf("expected exitCode=0, got %v", output.ExitCode)
-	}
-	if output.Stdout != stdoutContent {
-		t.Fatalf("stdout mismatch: %q", output.Stdout)
-	}
-	if output.Stderr != stderrContent {
-		t.Fatalf("stderr mismatch: %q", output.Stderr)
-	}
-	if output.FinishedAt == nil || !output.FinishedAt.Equal(finished) {
-		t.Fatalf("finishedAt mismatch")
-	}
-	if !output.StartedAt.Equal(started) {
-		t.Fatalf("startedAt mismatch")
+	if string(output) != stdoutContent {
+		t.Fatalf("expected output=%s, got %s", stdoutContent, string(output))
 	}
 }

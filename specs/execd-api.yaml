@@ -351,17 +351,18 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
-  /command/output/{id}:
+  /command/{id}/logs:
     get:
-      summary: Get command stdout/stderr (non-streamed)
+      summary: Get background command stdout/stderr (non-streamed)
       description: |
-        Returns stdout and stderr for a command (foreground or background) by command ID,
-        along with its status. Supports incremental reads similar to a file seek:
+        Returns stdout and stderr for a background (detached) command by command ID.
+        Foreground commands should be consumed via SSE; this endpoint is intended for
+        polling logs of background commands. Supports incremental reads similar to a file seek:
         pass a starting line via query to fetch output after that line and receive the latest
         line index for the next poll. When no starting line is provided, the full logs are returned.
         Response body is plain text so it can be rendered directly in browsers; the latest line index
         is provided via response header `EXECD-COMMANDS-TAIL-CURSOR` for subsequent incremental requests.
-      operationId: getCommandOutput
+      operationId: getBackgroundCommandLogs
       tags:
         - Command
       parameters:
@@ -910,7 +911,7 @@ components:
           type: string
           description: Command ID returned by RunCommand
           example: cmd-abc123
-        command:
+        content:
           type: string
           description: Original command content
           example: ls -la

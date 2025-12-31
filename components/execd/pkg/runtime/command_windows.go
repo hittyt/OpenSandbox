@@ -67,7 +67,9 @@ func (c *Controller) runCommand(ctx context.Context, request *ExecuteCodeRequest
 	}
 
 	kernel := &commandKernel{
-		pid: cmd.Process.Pid,
+		pid:          cmd.Process.Pid,
+		content:      request.Code,
+		isBackground: false,
 	}
 	c.storeCommandKernel(session, kernel)
 
@@ -123,7 +125,9 @@ func (c *Controller) runBackgroundCommand(_ context.Context, request *ExecuteCod
 		}
 
 		kernel := &commandKernel{
-			pid: cmd.Process.Pid,
+			pid:          cmd.Process.Pid,
+			content:      request.Code,
+			isBackground: true,
 		}
 		c.storeCommandKernel(session, kernel)
 
