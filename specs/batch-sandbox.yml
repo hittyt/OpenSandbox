@@ -228,7 +228,7 @@ components:
   schemas:
     CreateBatchSandboxRequest:
       type: object
-      required: [poolRef, replicas]
+      required: [poolRef, replicas, timeout]
       description: |
         Request to provision multiple sandboxes from a pool template. Overrides are
         applied per replica by index; unspecified replicas inherit the pool defaults.
@@ -243,6 +243,14 @@ components:
           maximum: 10000
           description: Number of sandboxes to create in the batch
           example: 1000
+        timeout:
+          type: integer
+          minimum: 60
+          maximum: 86400
+          description: |
+            Required batch-level timeout in seconds (TTL) starting at batch creation.
+            When this duration elapses, the batch is terminated to prevent leaks and
+            any still-running sandboxes are killed.
         instanceOverrides:
           type: array
           description: |
@@ -322,6 +330,13 @@ components:
         poolRef:
           type: string
           description: Pool template reference used for the batch
+        timeout:
+          type: integer
+          minimum: 60
+          maximum: 86400
+          description: |
+            Batch-level timeout in seconds (TTL) starting at batch creation. On expiry,
+            the batch is terminated and any running sandboxes are killed.
         metadata:
           type: object
           additionalProperties:
@@ -331,7 +346,7 @@ components:
           type: string
           format: date-time
           description: Batch creation timestamp
-      required: [id, status, replicas, poolRef, createdAt]
+      required: [id, status, replicas, poolRef, timeout, createdAt]
 
     BatchSandbox:
       type: object
@@ -347,6 +362,10 @@ components:
         replicas:
           type: integer
           description: Number of sandboxes requested for this batch
+        timeout:
+          type: integer
+          description: Batch-level timeout in seconds (TTL) from batch creation; on
+            expiry the batch is terminated and any running sandboxes are killed.
         status:
           $ref: '#/components/schemas/BatchSandboxStatus'
         metadata:
@@ -373,6 +392,7 @@ components:
         - id
         - poolRef
         - replicas
+        - timeout
         - status
         - sandboxes
         - pagination
