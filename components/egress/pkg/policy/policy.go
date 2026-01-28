@@ -24,6 +24,11 @@ const (
 	ActionDeny  = "deny"
 )
 
+// DefaultDenyPolicy returns a new policy that denies all traffic.
+func DefaultDenyPolicy() *NetworkPolicy {
+	return &NetworkPolicy{DefaultAction: ActionDeny}
+}
+
 // NetworkPolicy is the minimal MVP shape for egress control.
 // Only domain/wildcard targets are honored in this MVP.
 type NetworkPolicy struct {
@@ -41,26 +46,20 @@ type EgressRule struct {
 func ParsePolicy(raw string) (*NetworkPolicy, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" || trimmed == "null" || trimmed == "{}" {
-		return nil, nil // treat empty/null payload as allow-all
+		return DefaultDenyPolicy(), nil
 	}
 
 	var p NetworkPolicy
 	if err := json.Unmarshal([]byte(trimmed), &p); err != nil {
 		return nil, err
 	}
-	if p.DefaultAction == "" {
-		if len(p.Egress) == 0 {
-			return nil, nil // empty object -> allow-all
-		}
-		p.DefaultAction = ActionDeny
-	}
-	return &p, nil
+	return ensureDefaults(&p), nil
 }
 
 // Evaluate returns allow/deny for a given domain (lowercased).
 func (p *NetworkPolicy) Evaluate(domain string) string {
 	if p == nil {
-		return ActionAllow
+		return ActionDeny
 	}
 	domain = strings.ToLower(strings.TrimSuffix(domain, "."))
 	for _, r := range p.Egress {
@@ -75,6 +74,17 @@ func (p *NetworkPolicy) Evaluate(domain string) string {
 		return ActionDeny
 	}
 	return p.DefaultAction
+}
+
+// ensureDefaults guarantees a policy always has a default action.
+func ensureDefaults(p *NetworkPolicy) *NetworkPolicy {
+	if p == nil {
+		return DefaultDenyPolicy()
+	}
+	if p.DefaultAction == "" {
+		p.DefaultAction = ActionDeny
+	}
+	return p
 }
 
 func (r *EgressRule) matchesDomain(domain string) bool {

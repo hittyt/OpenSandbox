@@ -32,8 +32,8 @@ import (
 
 // startPolicyServer launches a lightweight HTTP API for updating the egress policy at runtime.
 // Supported endpoints:
-//   - GET  /policy : returns the currently enforced policy (null when allow-all).
-//   - POST /policy : replace the policy; empty body clears restrictions (allow-all).
+//   - GET  /policy : returns the currently enforced policy.
+//   - POST /policy : replace the policy; empty body resets to default deny-all.
 func startPolicyServer(ctx context.Context, proxy *dnsproxy.Proxy, addr string, token string) error {
 	mux := http.NewServeMux()
 	handler := &policyServer{proxy: proxy, token: token}
@@ -101,10 +101,7 @@ func (s *policyServer) handlePolicy(w http.ResponseWriter, r *http.Request) {
 
 func (s *policyServer) handleGet(w http.ResponseWriter) {
 	current := s.proxy.CurrentPolicy()
-	mode := "enforcing"
-	if current == nil {
-		mode = "allow_all"
-	}
+	mode := modeFromPolicy(current)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"mode":   mode,
 		"policy": current,
@@ -121,11 +118,11 @@ func (s *policyServer) handlePost(w http.ResponseWriter, r *http.Request) {
 	}
 	raw := strings.TrimSpace(string(body))
 	if raw == "" {
-		s.proxy.UpdatePolicy(nil)
+		s.proxy.UpdatePolicy(policy.DefaultDenyPolicy())
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status": "ok",
-			"mode":   "allow_all",
-			"reason": "policy cleared",
+			"mode":   "deny_all",
+			"reason": "policy reset to default deny-all",
 		})
 		return
 	}
@@ -138,7 +135,7 @@ func (s *policyServer) handlePost(w http.ResponseWriter, r *http.Request) {
 	s.proxy.UpdatePolicy(pol)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": "ok",
-		"mode":   "enforcing",
+		"mode":   modeFromPolicy(pol),
 	})
 }
 
@@ -160,4 +157,17 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func modeFromPolicy(p *policy.NetworkPolicy) string {
+	if p == nil {
+		return "deny_all"
+	}
+	if p.DefaultAction == policy.ActionAllow && len(p.Egress) == 0 {
+		return "allow_all"
+	} else if p.DefaultAction == policy.ActionDeny && len(p.Egress) == 0 {
+		return "deny_all"
+	}
+
+	return "enforcing"
 }

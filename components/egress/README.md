@@ -34,22 +34,22 @@ The egress control is implemented as a **Sidecar** that shares the network names
 
 ## Configuration
 
-- Starts in allow-all mode by default.
-- Use the built-in HTTP API to push/update policy; empty/whitespace/`{}`/`null` clears (allow-all).
+- Starts in deny-all mode by default.
+- Use the built-in HTTP API to push/update policy; empty/whitespace/`{}`/`null` resets to default deny-all.
 - Optional token auth to restrict calls to the platform:
   - Set `OPENSANDBOX_EGRESS_TOKEN` in the sidecar container.
   - Callers must send header `OPENSANDBOX-EGRESS-AUTH: <token>`.
   - If token is not set, the endpoint stays open (not recommended for shared environments).
 - Optional bootstrap at start via env:
   - `OPENSANDBOX_EGRESS_RULES` (JSON, same shape as `/policy`) seeds initial policy.
-  - If unset/empty/`{}`/`null`, sidecar starts allow-all until HTTP updates.
+  - If unset/empty/`{}`/`null`, sidecar starts with default deny-all until HTTP updates.
 
 ### Runtime HTTP API
 
 - Default listen address: `:18080` (override with `OPENSANDBOX_EGRESS_HTTP_ADDR`).
 - Endpoints:
-  - `GET /policy` — returns the current policy (`null` when allow-all).
-  - `POST /policy` — replaces the policy. Empty/whitespace/`{}`/`null` clears restrictions (allow-all).
+  - `GET /policy` — returns the current policy.
+  - `POST /policy` — replaces the policy. Empty/whitespace/`{}`/`null` resets to default deny-all.
 
 Examples:
 
@@ -87,7 +87,7 @@ To test the sidecar with a sandbox application:
 
     *Note: `CAP_NET_ADMIN` is required for `iptables` redirection.*
 
-    After start, push policy via HTTP (empty body keeps allow-all):
+    After start, push policy via HTTP (empty body resets to deny-all):
 
     ```bash
     curl -XPOST http://11.167.84.130:18080/policy \
