@@ -43,6 +43,9 @@ func New(p *policy.NetworkPolicy, listenAddr string) (*Proxy, error) {
 	if listenAddr == "" {
 		listenAddr = defaultListenAddr
 	}
+	if p == nil {
+		p = policy.DefaultDenyPolicy()
+	}
 	upstream, err := discoverUpstream()
 	if err != nil {
 		return nil, err
@@ -50,7 +53,7 @@ func New(p *policy.NetworkPolicy, listenAddr string) (*Proxy, error) {
 	proxy := &Proxy{
 		listenAddr: listenAddr,
 		upstream:   upstream,
-		policy:     p,
+		policy:     ensurePolicyDefaults(p),
 	}
 	return proxy, nil
 }
@@ -137,10 +140,10 @@ func (p *Proxy) UpstreamHost() string {
 }
 
 // UpdatePolicy swaps the in-memory policy used by the proxy.
-// Passing nil switches the proxy into allow-all mode.
+// Passing nil reverts to the default deny-all policy.
 func (p *Proxy) UpdatePolicy(newPolicy *policy.NetworkPolicy) {
 	p.policyMu.Lock()
-	p.policy = newPolicy
+	p.policy = ensurePolicyDefaults(newPolicy)
 	p.policyMu.Unlock()
 }
 
@@ -161,11 +164,21 @@ func discoverUpstream() (string, error) {
 	return "8.8.8.8:53", nil
 }
 
-// LoadPolicyFromEnvVar reads the given env var and parses a policy; empty returns nil.
+// LoadPolicyFromEnvVar reads the given env var and parses a policy; empty falls back to default deny-all.
 func LoadPolicyFromEnvVar(envName string) (*policy.NetworkPolicy, error) {
 	raw := os.Getenv(envName)
 	if raw == "" {
-		return nil, nil
+		return policy.DefaultDenyPolicy(), nil
 	}
 	return policy.ParsePolicy(raw)
+}
+
+func ensurePolicyDefaults(p *policy.NetworkPolicy) *policy.NetworkPolicy {
+	if p == nil {
+		return policy.DefaultDenyPolicy()
+	}
+	if p.DefaultAction == "" {
+		p.DefaultAction = policy.ActionDeny
+	}
+	return p
 }

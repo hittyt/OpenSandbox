@@ -16,7 +16,7 @@ package policy
 
 import "testing"
 
-func TestParsePolicy_EmptyOrNullAllowsAll(t *testing.T) {
+func TestParsePolicy_EmptyOrNullDefaultsDeny(t *testing.T) {
 	cases := []string{
 		"",
 		"   ",
@@ -28,8 +28,14 @@ func TestParsePolicy_EmptyOrNullAllowsAll(t *testing.T) {
 		if err != nil {
 			t.Fatalf("raw %q returned error: %v", raw, err)
 		}
-		if p != nil {
-			t.Fatalf("raw %q expected nil policy (allow-all), got %+v", raw, p)
+		if p == nil {
+			t.Fatalf("raw %q expected default deny policy, got nil", raw)
+		}
+		if p.DefaultAction != ActionDeny {
+			t.Fatalf("raw %q expected defaultAction deny, got %+v", raw, p)
+		}
+		if got := p.Evaluate("example.com."); got != ActionDeny {
+			t.Fatalf("raw %q expected deny evaluation, got %s", raw, got)
 		}
 	}
 }
@@ -39,7 +45,23 @@ func TestParsePolicy_DefaultActionFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if p == nil || p.DefaultAction != ActionDeny {
+	if p == nil {
+		t.Fatalf("expected policy object, got nil")
+	}
+	if p.DefaultAction != ActionDeny {
 		t.Fatalf("expected defaultAction fallback to deny, got %+v", p)
+	}
+}
+
+func TestParsePolicy_EmptyEgressDefaultsDeny(t *testing.T) {
+	p, err := ParsePolicy(`{"defaultAction":""}`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p.DefaultAction != ActionDeny {
+		t.Fatalf("expected default deny when defaultAction missing, got %+v", p)
+	}
+	if got := p.Evaluate("anything.com."); got != ActionDeny {
+		t.Fatalf("expected evaluation deny for empty egress, got %s", got)
 	}
 }

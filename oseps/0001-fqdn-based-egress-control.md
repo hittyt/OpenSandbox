@@ -303,7 +303,7 @@ sandbox = await Sandbox.create(
 │                           Sandbox (shared netns)                             │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │ Egress Sidecar (NET_ADMIN)                                           │   │
-│  │   1. Load optional bootstrap from OPENSANDBOX_EGRESS_RULES (else allow-all)│   │
+│  │   1. Load optional bootstrap from OPENSANDBOX_EGRESS_RULES (else deny-all)│   │
 │  │   2. Accept updates via HTTP /policy (with auth header)              │   │
 │  │   3. Start DNS Proxy on 127.0.0.1:15353 (non-privileged port)        │   │
 │  │   4. Setup iptables REDIRECT 53→15353 (CAP_NET_ADMIN)                │   │
@@ -866,16 +866,15 @@ type NetFilter interface {
 func NewController(policy *NetworkPolicy) (*Controller, error) {
     ctrl := &Controller{policy: policy}
 
-    // No policy = disabled (preserve existing behavior exactly)
-    // - No DNS Proxy
+    // No policy = default deny-all fallback
+    // - DNS proxy still runs with deny-all baseline
     // - No resolv.conf modification
-    // - No network filtering
-    // - All external access allowed
+    // - No network filtering if nftables unavailable
+    // - External access denied unless rules are provided
     if policy == nil || len(policy.Egress) == 0 {
-        ctrl.mode = ModeDisabled
-        logs.Info("[egress] control disabled: no network_policy configured")
-        logs.Info("[egress] all external network access is allowed (default behavior)")
-        return ctrl, nil
+        ctrl.mode = ModeDNSOnly
+        ctrl.policy = &NetworkPolicy{DefaultAction: ActionDeny}
+        logs.Info("[egress] no network_policy configured; enforcing default deny-all")
     }
 
     // Probe capabilities in order of preference
@@ -1065,8 +1064,7 @@ The sidecar holds the only elevated capability (`CAP_NET_ADMIN`) needed for ipta
 
 func (c *Controller) Start() error {
     if c.policy == nil || len(c.policy.Egress) == 0 {
-        logs.Info("[egress] no network_policy, all external access allowed")
-        return nil
+        logs.Info("[egress] no network_policy, enforcing default deny-all")
     }
 
     // Start DNS Proxy on non-privileged port (no root needed)
@@ -1152,7 +1150,7 @@ func main() {
     defer cancel()
 
     initial, _ := dnsproxy.LoadPolicyFromEnvVar("OPENSANDBOX_EGRESS_RULES")
-    proxy, err := dnsproxy.New(initial, "") // start allow-all if nil
+    proxy, err := dnsproxy.New(initial, "") // start default deny-all if nil
     if err != nil { log.Fatal(err) }
     go startPolicyServer(ctx, proxy, os.Getenv("OPENSANDBOX_EGRESS_HTTP_ADDR"), os.Getenv("OPENSANDBOX_EGRESS_TOKEN"))
 
@@ -1295,21 +1293,15 @@ Update `specs/sandbox-lifecycle.yml` with the schema defined in [API Schema](#ap
 
 ### Backward Compatibility
 
-- **No breaking changes**: Existing sandboxes without `network_policy` continue to work unchanged.
-- **Opt-in feature**: Users must explicitly specify `network_policy` to enable egress control.
-- **Zero overhead when disabled**: When `network_policy` is not specified:
-  - No DNS Proxy is started
-  - No iptables rules added
-  - No CAP_NET_ADMIN capability added
-  - Container uses image's original USER
-  - All external network access is allowed (current default behavior)
-  - Zero performance overhead
+- **Default baseline is deny-all**: egress sidecar enforces deny-all until explicit policy is provided.
+- **Opt-in rules**: Users specify `network_policy` to open destinations (allow or explicit deny rules).
+- **Graceful degradation**: If `CAP_NET_ADMIN` is unavailable, DNS interception may be skipped but default deny remains at the proxy layer.
 
 **Behavior Matrix**:
 
 | Scenario | DNS Proxy | iptables REDIRECT | CAP_NET_ADMIN | Network Filter | External Access |
 |----------|-----------|-------------------|---------------|----------------|-----------------|
-| No `network_policy` | ❌ Off | ❌ None | ❌ Not added | ❌ Off | ✅ All allowed |
+| No `network_policy` | ✅ On (:15353) | ⚠️ Attempted; warn if unavailable | ⚠️ Required for redirect | ⚠️ If capable | 🔒 Deny-all baseline |
 | `network_policy` specified | ✅ On (:15353) | ✅ 53→15353 | ✅ Added | ⚡ If capable | 🔒 Policy-based |
 
 ### Migration Path

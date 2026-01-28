@@ -26,8 +26,11 @@ func TestProxyUpdatePolicy(t *testing.T) {
 		t.Fatalf("init proxy: %v", err)
 	}
 
-	if proxy.CurrentPolicy() != nil {
-		t.Fatalf("expected initial allow-all (nil policy)")
+	if proxy.CurrentPolicy() == nil {
+		t.Fatalf("expected default deny policy (non-nil)")
+	}
+	if got := proxy.CurrentPolicy().Evaluate("example.com."); got != policy.ActionDeny {
+		t.Fatalf("expected default deny, got %s", got)
 	}
 
 	pol, err := policy.ParsePolicy(`{"defaultAction":"deny","egress":[{"action":"allow","target":"example.com"}]}`)
@@ -44,8 +47,11 @@ func TestProxyUpdatePolicy(t *testing.T) {
 	}
 
 	proxy.UpdatePolicy(nil)
-	if proxy.CurrentPolicy() != nil {
-		t.Fatalf("expected allow-all after clearing policy")
+	if proxy.CurrentPolicy() == nil {
+		t.Fatalf("expected default deny policy after clearing")
+	}
+	if got := proxy.CurrentPolicy().Evaluate("example.com."); got != policy.ActionDeny {
+		t.Fatalf("expected default deny after clearing, got %s", got)
 	}
 }
 
@@ -66,7 +72,10 @@ func TestLoadPolicyFromEnvVar(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error on empty env: %v", err)
 	}
-	if pol != nil {
-		t.Fatalf("expected nil policy when env is empty")
+	if pol == nil {
+		t.Fatalf("expected default deny policy when env is empty")
+	}
+	if pol.DefaultAction != policy.ActionDeny {
+		t.Fatalf("expected default deny when env is empty, got %+v", pol)
 	}
 }
