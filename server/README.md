@@ -10,7 +10,7 @@ A production-grade, FastAPI-based service for managing the lifecycle of containe
 - **Lifecycle APIs**: Standardized REST interfaces for create, start, pause, resume, delete
 - **Pluggable runtimes**:
   - **Docker**: Production-ready
-  - **Kubernetes**: Configuration placeholder, under development
+  - **Kubernetes**: Supported (see `kubernetes/` for deployment)
 - **Automatic expiration**: Configurable TTL with renewal
 - **Access control**: API Key authentication (`OPEN-SANDBOX-API-KEY`); can be disabled for local/dev
 - **Networking modes**:
@@ -33,7 +33,7 @@ A production-grade, FastAPI-based service for managing the lifecycle of containe
 - **Package Manager**: [uv](https://github.com/astral-sh/uv) (recommended) or pip
 - **Runtime Backend**:
   - Docker Engine 20.10+ (for Docker runtime)
-  - Kubernetes 1.21+ (for Kubernetes runtime, when available)
+  - Kubernetes 1.21+ (for Kubernetes runtime)
 - **Operating System**: Linux, macOS, or Windows with WSL2
 
 ## Quick Start
