@@ -1,0 +1,42 @@
+from __future__ import annotations
+
+from typing import Any
+
+from dify_plugin import ToolProvider
+from dify_plugin.errors.tool import ToolProviderCredentialValidationError
+from opensandbox.config.connection_sync import ConnectionConfigSync
+from opensandbox.models.sandboxes import SandboxFilter
+from opensandbox.sync.manager import SandboxManagerSync
+
+
+def _normalize_domain(base_url: str) -> str:
+    base_url = base_url.strip().rstrip("/")
+    if base_url.endswith("/v1"):
+        base_url = base_url[:-3]
+    return base_url
+
+
+class OpenSandboxProvider(ToolProvider):
+    def _validate_credentials(self, credentials: dict[str, Any]) -> None:
+        base_url = credentials.get("opensandbox_base_url", "")
+        api_key = credentials.get("opensandbox_api_key", "")
+        if not base_url or not api_key:
+            raise ToolProviderCredentialValidationError("Missing OpenSandbox base URL or API key.")
+
+        config = ConnectionConfigSync(
+            domain=_normalize_domain(base_url),
+            api_key=api_key,
+        )
+
+        manager = None
+        try:
+            manager = SandboxManagerSync.create(connection_config=config)
+            _ = manager.list_sandbox_infos(SandboxFilter(page_size=1))
+        except Exception as exc:
+            raise ToolProviderCredentialValidationError(str(exc)) from exc
+        finally:
+            try:
+                if manager is not None:
+                    manager.close()
+            except Exception:
+                pass

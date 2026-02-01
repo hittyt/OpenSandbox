@@ -1,0 +1,9 @@
+# Generated Dify docker-compose directory
+.dify/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
