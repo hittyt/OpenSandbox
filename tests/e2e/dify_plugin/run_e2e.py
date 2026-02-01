@@ -187,18 +187,18 @@ def fetch_tool_provider(session: requests.Session, base_url: str, csrf_token: st
         for provider in providers:
             if not isinstance(provider, dict):
                 continue
-            name = provider.get("name", "")
-            plugin_id = provider.get("plugin_id", "")
+            name = provider.get("name") or ""
+            plugin_id = provider.get("plugin_id") or ""
             
             # Try matching by name
             if name == provider_name:
                 return provider
-            # Also check if name contains provider_name (plugin providers may have prefixes)
+            # Also check if name contains provider_name (plugin providers may have prefixes like uuid/name/name)
             if provider_name in name:
                 print(f"Found provider by partial name match: {name}")
                 return provider
             # Also check plugin_id for plugin-based providers
-            if provider_name in plugin_id:
+            if plugin_id and provider_name in plugin_id:
                 print(f"Found provider by plugin_id: {plugin_id}")
                 return provider
         
