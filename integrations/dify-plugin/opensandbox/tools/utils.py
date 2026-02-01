@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import timedelta
 from typing import Any
 
@@ -15,8 +16,15 @@ def normalize_domain(base_url: str) -> str:
 
 
 def build_connection_config(credentials: dict[str, Any]) -> ConnectionConfigSync:
-    base_url = credentials.get("opensandbox_base_url", "")
-    api_key = credentials.get("opensandbox_api_key", "")
+    # Try credentials first, then fall back to environment variables
+    base_url = credentials.get("opensandbox_base_url", "") or os.environ.get("OPENSANDBOX_BASE_URL", "")
+    api_key = credentials.get("opensandbox_api_key", "") or os.environ.get("OPENSANDBOX_API_KEY", "")
+    
+    if not base_url:
+        raise ValueError("opensandbox_base_url is required (via credentials or OPENSANDBOX_BASE_URL env var)")
+    if not api_key:
+        raise ValueError("opensandbox_api_key is required (via credentials or OPENSANDBOX_API_KEY env var)")
+    
     return ConnectionConfigSync(
         domain=normalize_domain(base_url),
         api_key=api_key,

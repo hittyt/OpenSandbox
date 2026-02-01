@@ -90,7 +90,13 @@ def setup_and_login(session: requests.Session, base_url: str, email: str, passwo
     return get_csrf_token(session)
 
 
-def start_plugin(session: requests.Session, base_url: str, csrf_token: str) -> subprocess.Popen:
+def start_plugin(
+    session: requests.Session,
+    base_url: str,
+    csrf_token: str,
+    opensandbox_url: str,
+    opensandbox_api_key: str,
+) -> subprocess.Popen:
     headers = {"X-CSRF-Token": csrf_token} if csrf_token else {}
     resp = session.get(f"{base_url}/console/api/workspaces/current/plugin/debugging-key", headers=headers, timeout=10)
     if resp.status_code != 200:
@@ -103,8 +109,11 @@ def start_plugin(session: requests.Session, base_url: str, csrf_token: str) -> s
     env["INSTALL_METHOD"] = "remote"
     env["REMOTE_INSTALL_URL"] = remote_url
     env["REMOTE_INSTALL_KEY"] = remote_key
+    # Pass OpenSandbox config via environment variables (fallback for credentials)
+    env["OPENSANDBOX_BASE_URL"] = opensandbox_url
+    env["OPENSANDBOX_API_KEY"] = opensandbox_api_key
 
-    print(f"Starting plugin with REMOTE_INSTALL_URL={remote_url}")
+    print(f"Starting plugin with REMOTE_INSTALL_URL={remote_url}, OPENSANDBOX_BASE_URL={opensandbox_url}")
 
     return subprocess.Popen(
         [sys.executable, "-m", "main"],
@@ -344,7 +353,7 @@ def main() -> None:
     print("Dify login successful")
 
     print("\nStarting plugin process...")
-    plugin_proc = start_plugin(session, base_url, csrf_token)
+    plugin_proc = start_plugin(session, base_url, csrf_token, opensandbox_url, opensandbox_api_key)
     try:
         print("Waiting for plugin to register in Dify...")
         wait_for_plugin(session, base_url, csrf_token, "opensandbox", timeout=180)
