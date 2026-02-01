@@ -154,31 +154,32 @@ def ensure_provider_credentials(
     else:
         add_url = f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials/add"
     
+    # Payload for adding credentials
+    add_payload = {
+        "credentials": credentials_payload,
+        "type": "builtin",
+    }
+    
     print(f"Adding credentials via: {add_url}")
-    add_resp = session.post(
-        add_url,
-        headers=headers,
-        json={"credentials": credentials_payload},
-        timeout=10,
-    )
+    add_resp = session.post(add_url, headers=headers, json=add_payload, timeout=10)
     print(f"Add credentials response: {add_resp.status_code} {add_resp.text[:300] if add_resp.text else ''}")
     
-    # If add fails, try update endpoint with credential_id
+    # If add fails, try different approaches
     if add_resp.status_code not in {200, 201}:
-        # Try the update endpoint
-        update_url = f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/update"
-        print(f"Trying update endpoint: {update_url}")
-        update_resp = session.post(
-            update_url,
-            headers=headers,
-            json={
-                "credentials": credentials_payload,
-                "credential_id": "default",  # Try with default credential ID
-            },
-            timeout=10,
-        )
-        print(f"Update credentials response: {update_resp.status_code} {update_resp.text[:300] if update_resp.text else ''}")
-        add_resp = update_resp
+        # Try with type=api
+        add_payload["type"] = "api"
+        print(f"Retrying with type=api...")
+        add_resp = session.post(add_url, headers=headers, json=add_payload, timeout=10)
+        print(f"Add credentials response: {add_resp.status_code} {add_resp.text[:300] if add_resp.text else ''}")
+    
+    if add_resp.status_code not in {200, 201}:
+        # Try direct update on provider
+        update_url = f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials"
+        print(f"Trying PUT to: {update_url}")
+        update_resp = session.put(update_url, headers=headers, json={"credentials": credentials_payload}, timeout=10)
+        print(f"PUT credentials response: {update_resp.status_code} {update_resp.text[:300] if update_resp.text else ''}")
+        if update_resp.status_code in {200, 201}:
+            add_resp = update_resp
     
     if add_resp.status_code not in {200, 201, 400, 404}:
         raise RuntimeError(f"Failed to add credentials: {add_resp.status_code} {add_resp.text}")
