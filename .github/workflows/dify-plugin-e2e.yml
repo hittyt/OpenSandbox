@@ -184,6 +184,15 @@ jobs:
         run: |
           pip install -r requirements.txt
 
+      - name: Run plugin unit tests
+        working-directory: integrations/dify-plugin/opensandbox
+        env:
+          OPENSANDBOX_BASE_URL: "http://localhost:8080"
+          OPENSANDBOX_API_KEY: ${{ env.OPEN_SANDBOX_API_KEY }}
+          PYTHONPATH: "."
+        run: |
+          python -m unittest discover -s tests -v
+
       - name: Run E2E test
         working-directory: tests/e2e/dify_plugin
         env:
