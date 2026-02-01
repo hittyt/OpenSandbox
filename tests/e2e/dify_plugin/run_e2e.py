@@ -156,6 +156,7 @@ def ensure_provider_credentials(
 
     cred_resp = session.get(
         f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials",
+        headers=headers,
         timeout=10,
     )
     if cred_resp.status_code != 200:
