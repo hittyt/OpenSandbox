@@ -169,16 +169,43 @@ def ensure_provider_credentials(
     return creds[0]["id"]
 
 
-def fetch_tool_provider(session: requests.Session, base_url: str, csrf_token: str, provider_name: str) -> dict:
+def fetch_tool_provider(session: requests.Session, base_url: str, csrf_token: str, provider_name: str, timeout: int = 60) -> dict:
     headers = {"X-CSRF-Token": csrf_token} if csrf_token else {}
-    resp = session.get(f"{base_url}/console/api/workspaces/current/tool-providers", headers=headers, timeout=10)
-    if resp.status_code != 200:
-        raise RuntimeError(f"Failed to list tool providers: {resp.status_code} {resp.text}")
-    providers = resp.json()
-    for provider in providers:
-        if provider.get("name") == provider_name:
-            return provider
-    raise RuntimeError(f"Provider {provider_name} not found in tool providers list")
+    deadline = time.time() + timeout
+    
+    while time.time() < deadline:
+        resp = session.get(f"{base_url}/console/api/workspaces/current/tool-providers", headers=headers, timeout=10)
+        if resp.status_code != 200:
+            raise RuntimeError(f"Failed to list tool providers: {resp.status_code} {resp.text}")
+        
+        providers = resp.json()
+        # Debug: print available provider info
+        for p in providers[:5]:  # First 5 providers for debugging
+            if isinstance(p, dict):
+                print(f"  Provider: name={p.get('name')}, plugin_id={p.get('plugin_id')}, type={p.get('type')}")
+        
+        for provider in providers:
+            if not isinstance(provider, dict):
+                continue
+            name = provider.get("name", "")
+            plugin_id = provider.get("plugin_id", "")
+            
+            # Try matching by name
+            if name == provider_name:
+                return provider
+            # Also check if name contains provider_name (plugin providers may have prefixes)
+            if provider_name in name:
+                print(f"Found provider by partial name match: {name}")
+                return provider
+            # Also check plugin_id for plugin-based providers
+            if provider_name in plugin_id:
+                print(f"Found provider by plugin_id: {plugin_id}")
+                return provider
+        
+        print(f"Provider {provider_name} not found yet, waiting...")
+        time.sleep(3)
+    
+    raise RuntimeError(f"Provider {provider_name} not found in tool providers list after {timeout}s")
 
 
 def render_workflow(template: str, replacements: dict) -> str:
