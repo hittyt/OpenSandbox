@@ -90,8 +90,9 @@ def setup_and_login(session: requests.Session, base_url: str, email: str, passwo
     return get_csrf_token(session)
 
 
-def start_plugin(session: requests.Session, base_url: str) -> subprocess.Popen:
-    resp = session.get(f"{base_url}/console/api/workspaces/current/plugin/debugging-key", timeout=10)
+def start_plugin(session: requests.Session, base_url: str, csrf_token: str) -> subprocess.Popen:
+    headers = {"X-CSRF-Token": csrf_token} if csrf_token else {}
+    resp = session.get(f"{base_url}/console/api/workspaces/current/plugin/debugging-key", headers=headers, timeout=10)
     if resp.status_code != 200:
         raise RuntimeError(f"Failed to get debugging key: {resp.status_code} {resp.text}")
     data = resp.json()
@@ -115,10 +116,11 @@ def start_plugin(session: requests.Session, base_url: str) -> subprocess.Popen:
     )
 
 
-def wait_for_plugin(session: requests.Session, base_url: str, name: str, timeout: int = 120) -> None:
+def wait_for_plugin(session: requests.Session, base_url: str, csrf_token: str, name: str, timeout: int = 120) -> None:
+    headers = {"X-CSRF-Token": csrf_token} if csrf_token else {}
     deadline = time.time() + timeout
     while time.time() < deadline:
-        resp = session.get(f"{base_url}/console/api/workspaces/current/plugin/list", timeout=10)
+        resp = session.get(f"{base_url}/console/api/workspaces/current/plugin/list", headers=headers, timeout=10)
         if resp.status_code == 200:
             plugins = resp.json().get("plugins", [])
             if any(p.get("name") == name for p in plugins):
@@ -167,8 +169,9 @@ def ensure_provider_credentials(
     return creds[0]["id"]
 
 
-def fetch_tool_provider(session: requests.Session, base_url: str, provider_name: str) -> dict:
-    resp = session.get(f"{base_url}/console/api/workspaces/current/tool-providers", timeout=10)
+def fetch_tool_provider(session: requests.Session, base_url: str, csrf_token: str, provider_name: str) -> dict:
+    headers = {"X-CSRF-Token": csrf_token} if csrf_token else {}
+    resp = session.get(f"{base_url}/console/api/workspaces/current/tool-providers", headers=headers, timeout=10)
     if resp.status_code != 200:
         raise RuntimeError(f"Failed to list tool providers: {resp.status_code} {resp.text}")
     providers = resp.json()
@@ -264,14 +267,14 @@ def main() -> None:
     print("Dify login successful")
 
     print("\nStarting plugin process...")
-    plugin_proc = start_plugin(session, base_url)
+    plugin_proc = start_plugin(session, base_url, csrf_token)
     try:
         print("Waiting for plugin to register in Dify...")
-        wait_for_plugin(session, base_url, "opensandbox", timeout=180)
+        wait_for_plugin(session, base_url, csrf_token, "opensandbox", timeout=180)
         print("Plugin registered successfully")
 
         print("\nFetching tool provider info...")
-        provider = fetch_tool_provider(session, base_url, "opensandbox")
+        provider = fetch_tool_provider(session, base_url, csrf_token, "opensandbox")
         print(f"Provider found: {provider.get('name')}")
 
         print("\nConfiguring OpenSandbox credentials...")
