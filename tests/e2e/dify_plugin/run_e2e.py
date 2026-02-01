@@ -144,12 +144,15 @@ def ensure_provider_credentials(
         "opensandbox_api_key": api_key,
     }
     
-    # For plugin providers, use plugin endpoint; for builtin, use builtin endpoint
-    if provider_type == "builtin" and "/" not in provider:
+    # Determine provider type based on name format (UUID/name/name pattern = plugin)
+    is_plugin = "/" in provider
+    
+    if is_plugin:
+        # Plugin providers: credentials are configured differently
+        # Try the plugin credentials endpoint
         add_url = f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/update"
     else:
-        # Plugin providers use different endpoint
-        add_url = f"{base_url}/console/api/workspaces/current/tool-provider/plugin/{provider}/update"
+        add_url = f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/update"
     
     print(f"Adding credentials via: {add_url}")
     add_resp = session.post(
@@ -329,6 +332,9 @@ def main() -> None:
         provider = fetch_tool_provider(session, base_url, csrf_token, "opensandbox")
         print(f"Provider found: {provider.get('name')}")
 
+        # Debug: print full provider info
+        print(f"\nProvider details: {json.dumps(provider, indent=2, default=str)[:1000]}")
+        
         print("\nConfiguring OpenSandbox credentials...")
         provider_name = provider.get("name", "opensandbox")
         provider_type = provider.get("type", "builtin")
@@ -346,15 +352,29 @@ def main() -> None:
         tools = {tool["name"]: tool for tool in provider.get("tools", [])}
         print(f"Available tools: {list(tools.keys())}")
 
+        # Helper to get tool label with fallback
+        def get_tool_label(tool_name: str, default: str) -> str:
+            if tool_name in tools:
+                return tools[tool_name].get("label", {}).get("en_US", default)
+            return default
+
+        # Get label from provider, handling nested structure
+        provider_label = provider.get("label", {})
+        if isinstance(provider_label, dict):
+            provider_label_text = provider_label.get("en_US", provider["name"])
+        else:
+            provider_label_text = str(provider_label) if provider_label else provider["name"]
+
         replacements = {
             "__PROVIDER_ID__": provider["name"],
-            "__PROVIDER_NAME__": provider["label"].get("en_US", provider["name"]),
-            "__PLUGIN_UNIQUE_IDENTIFIER__": provider.get("plugin_unique_identifier", ""),
+            "__PROVIDER_NAME__": provider_label_text,
+            "__PLUGIN_UNIQUE_IDENTIFIER__": provider.get("plugin_unique_identifier") or provider.get("plugin_id") or "",
             "__CREDENTIAL_ID__": credential_id,
-            "__TOOL_CREATE_LABEL__": tools["sandbox_create"]["label"].get("en_US", "Create Sandbox"),
-            "__TOOL_RUN_LABEL__": tools["sandbox_run"]["label"].get("en_US", "Run Command"),
-            "__TOOL_KILL_LABEL__": tools["sandbox_kill"]["label"].get("en_US", "Kill Sandbox"),
+            "__TOOL_CREATE_LABEL__": get_tool_label("sandbox_create", "Create Sandbox"),
+            "__TOOL_RUN_LABEL__": get_tool_label("sandbox_run", "Run Command"),
+            "__TOOL_KILL_LABEL__": get_tool_label("sandbox_kill", "Kill Sandbox"),
         }
+        print(f"Replacements: {replacements}")
 
         print("\nImporting workflow...")
         template = TEMPLATE_PATH.read_text(encoding="utf-8")
