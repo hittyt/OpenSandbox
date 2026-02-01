@@ -53,7 +53,7 @@ def get_pattern(image_name):
     # Group 1: Optional registry/user prefix
     # Group 2: The specific version tag
     # We ignore ${TAG}, $TAG, :latest, :local, :dev, :test to avoid breaking build scripts and tests
-    return re.compile(r'([a-zA-Z0-9.-]+(?::\d+)?/)?' + re.escape(image_name) + r":(?![\$\{]|latest\b|local\b|dev\b|test\b)([a-zA-Z0-9._-]+)")
+    return re.compile(r'((?:[a-zA-Z0-9._-]+(?::\d+)?/)+)?' + re.escape(image_name) + r":(?![\$\{]|latest\b|local\b|dev\b|test\b)([a-zA-Z0-9._-]+)")
 
 def get_current_version(component_name):
     version_file = COMPONENTS[component_name]["version_file"]
