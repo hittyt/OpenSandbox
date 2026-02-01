@@ -147,39 +147,36 @@ def ensure_provider_credentials(
     # Determine provider type based on name format (UUID/name/name pattern = plugin)
     is_plugin = "/" in provider
     
-    # First, try to create a credential
+    # For plugin providers, we need to use the plugin-specific API
+    # Try multiple endpoint patterns
+    endpoints_to_try = []
+    
     if is_plugin:
-        # For plugin providers, use the add credential endpoint
-        add_url = f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials/add"
+        # Plugin provider endpoints
+        endpoints_to_try = [
+            # Pattern 1: plugin endpoint with credentials
+            (f"{base_url}/console/api/workspaces/current/tool-provider/plugin/{provider}/credentials", 
+             {"credentials": credentials_payload}),
+            # Pattern 2: POST to update provider credentials
+            (f"{base_url}/console/api/workspaces/current/tool-provider/plugin/{provider}/update",
+             {"credentials": credentials_payload}),
+            # Pattern 3: builtin endpoint (since type shows as builtin)
+            (f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials",
+             {"credentials": credentials_payload}),
+        ]
     else:
-        add_url = f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials/add"
+        endpoints_to_try = [
+            (f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials",
+             {"credentials": credentials_payload}),
+        ]
     
-    # Payload for adding credentials
-    add_payload = {
-        "credentials": credentials_payload,
-        "type": "builtin",
-    }
-    
-    print(f"Adding credentials via: {add_url}")
-    add_resp = session.post(add_url, headers=headers, json=add_payload, timeout=10)
-    print(f"Add credentials response: {add_resp.status_code} {add_resp.text[:300] if add_resp.text else ''}")
-    
-    # If add fails, try different approaches
-    if add_resp.status_code not in {200, 201}:
-        # Try with type=api
-        add_payload["type"] = "api"
-        print(f"Retrying with type=api...")
-        add_resp = session.post(add_url, headers=headers, json=add_payload, timeout=10)
-        print(f"Add credentials response: {add_resp.status_code} {add_resp.text[:300] if add_resp.text else ''}")
-    
-    if add_resp.status_code not in {200, 201}:
-        # Try direct update on provider
-        update_url = f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials"
-        print(f"Trying PUT to: {update_url}")
-        update_resp = session.put(update_url, headers=headers, json={"credentials": credentials_payload}, timeout=10)
-        print(f"PUT credentials response: {update_resp.status_code} {update_resp.text[:300] if update_resp.text else ''}")
-        if update_resp.status_code in {200, 201}:
-            add_resp = update_resp
+    add_resp = None
+    for url, payload in endpoints_to_try:
+        print(f"Trying: POST {url}")
+        add_resp = session.post(url, headers=headers, json=payload, timeout=10)
+        print(f"Response: {add_resp.status_code} {add_resp.text[:200] if add_resp.text else ''}")
+        if add_resp.status_code in {200, 201}:
+            break
     
     if add_resp.status_code not in {200, 201, 400, 404}:
         raise RuntimeError(f"Failed to add credentials: {add_resp.status_code} {add_resp.text}")
