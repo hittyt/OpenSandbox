@@ -165,21 +165,21 @@ def ensure_provider_credentials(
     
     # List of (method, url, payload) to try
     attempts = [
-        # Pattern 1: POST to plugin provider credentials
-        ("POST", f"{base_url}/console/api/workspaces/current/tool-provider/plugin/{plugin_id}/credentials",
-         {"credentials": credentials_payload}),
-        # Pattern 2: POST with full provider name
-        ("POST", f"{base_url}/console/api/workspaces/current/tool-provider/plugin/{provider}/credentials",
-         {"credentials": credentials_payload}),
-        # Pattern 3: PUT to builtin credentials
-        ("PUT", f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials",
-         {"credentials": credentials_payload}),
-        # Pattern 4: POST to builtin update
-        ("POST", f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/update",
-         {"credentials": credentials_payload}),
-        # Pattern 5: POST credentials with name field
+        # Pattern 1: POST credentials/add with type=plugin
         ("POST", f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials/add",
-         {"credentials": credentials_payload, "name": "default"}),
+         {"credentials": credentials_payload, "type": "plugin", "name": "default"}),
+        # Pattern 2: POST credentials/add with type=model
+        ("POST", f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials/add",
+         {"credentials": credentials_payload, "type": "model", "name": "default"}),
+        # Pattern 3: POST credentials/add with type=tool
+        ("POST", f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials/add",
+         {"credentials": credentials_payload, "type": "tool", "name": "default"}),
+        # Pattern 4: POST direct credentials (no type)
+        ("POST", f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{provider}/credentials",
+         {"credentials": credentials_payload}),
+        # Pattern 5: POST with plugin_id
+        ("POST", f"{base_url}/console/api/workspaces/current/tool-provider/builtin/{plugin_id}/credentials",
+         {"credentials": credentials_payload}),
     ]
     
     for method, url, payload in attempts:
