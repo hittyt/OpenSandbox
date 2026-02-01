@@ -105,6 +105,8 @@ class TestToolsIntegration(unittest.TestCase):
 
     def test_sandbox_lifecycle(self):
         """Test full sandbox lifecycle: create -> run -> kill."""
+        from datetime import timedelta
+
         from opensandbox.sync.sandbox import SandboxSync
         from opensandbox.config.connection_sync import ConnectionConfigSync
 
@@ -113,8 +115,8 @@ class TestToolsIntegration(unittest.TestCase):
         # Create sandbox
         sandbox = SandboxSync.create(
             "python:3.11-slim",
-            timeout_seconds=60,
-            ready_timeout_seconds=30,
+            timeout=timedelta(seconds=60),
+            ready_timeout=timedelta(seconds=30),
             connection_config=config,
         )
         self.assertIsNotNone(sandbox.id)
