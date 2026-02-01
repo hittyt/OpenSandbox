@@ -25,7 +25,8 @@ concurrency:
 
 env:
   DIFY_PORT: "5001"
-  DIFY_REF: "main"
+  # Use latest stable release tag (check https://github.com/langgenius/dify/releases)
+  DIFY_REF: "1.11.4"
   DIFY_ADMIN_EMAIL: "admin@example.com"
   DIFY_ADMIN_PASSWORD: "ChangeMe123!"
   OPEN_SANDBOX_API_KEY: "opensandbox-e2e-key"

@@ -17,7 +17,8 @@ PLUGIN_DIR="$ROOT_DIR/integrations/dify-plugin/opensandbox"
 
 # Configuration
 export DIFY_PORT="${DIFY_PORT:-5001}"
-export DIFY_REF="${DIFY_REF:-main}"
+# Use latest stable release tag (check https://github.com/langgenius/dify/releases)
+export DIFY_REF="${DIFY_REF:-1.11.4}"
 export USE_DOCKER_MIRROR="${USE_DOCKER_MIRROR:-true}"
 export SKIP_DIFY_START="${SKIP_DIFY_START:-false}"  # Set to true if Dify is already running
 export DIFY_CONSOLE_API_URL="${DIFY_CONSOLE_API_URL:-http://localhost:$DIFY_PORT}"

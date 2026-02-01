@@ -84,7 +84,8 @@ def _update_env(env_path: Path, updates: dict[str, str]) -> None:
 def main() -> None:
     base_dir = Path(__file__).resolve().parent
     target_dir = Path(os.environ.get("DIFY_COMPOSE_DIR", base_dir / ".dify"))
-    dify_ref = os.environ.get("DIFY_REF", "main")
+    # Use latest stable release tag, not main branch (which may reference unreleased images)
+    dify_ref = os.environ.get("DIFY_REF", "1.11.4")
     dify_port = os.environ.get("DIFY_PORT", "5001")
     use_mirror = os.environ.get("USE_DOCKER_MIRROR", "").lower() in ("1", "true", "yes")
 
