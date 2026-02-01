@@ -125,9 +125,12 @@ class TestToolsIntegration(unittest.TestCase):
         try:
             # Run command
             result = sandbox.commands.run("echo opensandbox-test")
-            self.assertEqual(result.exit_code, 0)
-            self.assertIn("opensandbox-test", result.stdout)
-            print(f"Command output: {result.stdout}")
+            # Check no error occurred
+            self.assertIsNone(result.error, f"Execution error: {result.error}")
+            # Check stdout contains expected output
+            stdout_text = "".join(msg.text or "" for msg in result.logs.stdout)
+            self.assertIn("opensandbox-test", stdout_text)
+            print(f"Command output: {stdout_text}")
 
         finally:
             # Kill sandbox
