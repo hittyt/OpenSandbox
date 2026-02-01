@@ -95,8 +95,9 @@ workflow:
         provider_name: "__PROVIDER_NAME__"
         tool_name: "sandbox_create"
         tool_label: "__TOOL_CREATE_LABEL__"
-        tool_configurations: {}
-        credential_id: "__CREDENTIAL_ID__"
+        tool_configurations:
+          opensandbox_base_url: "__OPENSANDBOX_BASE_URL__"
+          opensandbox_api_key: "__OPENSANDBOX_API_KEY__"
         plugin_unique_identifier: "__PLUGIN_UNIQUE_IDENTIFIER__"
         tool_node_version: "1"
         tool_parameters:
@@ -126,8 +127,9 @@ workflow:
         provider_name: "__PROVIDER_NAME__"
         tool_name: "sandbox_run"
         tool_label: "__TOOL_RUN_LABEL__"
-        tool_configurations: {}
-        credential_id: "__CREDENTIAL_ID__"
+        tool_configurations:
+          opensandbox_base_url: "__OPENSANDBOX_BASE_URL__"
+          opensandbox_api_key: "__OPENSANDBOX_API_KEY__"
         plugin_unique_identifier: "__PLUGIN_UNIQUE_IDENTIFIER__"
         tool_node_version: "1"
         tool_parameters:
@@ -160,8 +162,9 @@ workflow:
         provider_name: "__PROVIDER_NAME__"
         tool_name: "sandbox_kill"
         tool_label: "__TOOL_KILL_LABEL__"
-        tool_configurations: {}
-        credential_id: "__CREDENTIAL_ID__"
+        tool_configurations:
+          opensandbox_base_url: "__OPENSANDBOX_BASE_URL__"
+          opensandbox_api_key: "__OPENSANDBOX_API_KEY__"
         plugin_unique_identifier: "__PLUGIN_UNIQUE_IDENTIFIER__"
         tool_node_version: "1"
         tool_parameters:

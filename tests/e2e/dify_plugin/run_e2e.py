@@ -392,11 +392,13 @@ def main() -> None:
             "__PROVIDER_NAME__": provider_label_text,
             "__PLUGIN_UNIQUE_IDENTIFIER__": provider.get("plugin_unique_identifier") or provider.get("plugin_id") or "",
             "__CREDENTIAL_ID__": credential_id,
+            "__OPENSANDBOX_BASE_URL__": opensandbox_url,
+            "__OPENSANDBOX_API_KEY__": opensandbox_api_key,
             "__TOOL_CREATE_LABEL__": get_tool_label("sandbox_create", "Create Sandbox"),
             "__TOOL_RUN_LABEL__": get_tool_label("sandbox_run", "Run Command"),
             "__TOOL_KILL_LABEL__": get_tool_label("sandbox_kill", "Kill Sandbox"),
         }
-        print(f"Replacements: {replacements}")
+        print(f"Replacements (excluding secrets): provider={provider['name']}, url={opensandbox_url}")
 
         print("\nImporting workflow...")
         template = TEMPLATE_PATH.read_text(encoding="utf-8")
