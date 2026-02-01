@@ -70,6 +70,8 @@ def should_process_file(path: Path):
     # Specific exclusions can be added here
     if path.resolve() == Path(__file__).resolve():
         return False
+    if path.name == "test_manage_sandbox_version.py":
+        return False
     return True
 
 def scan_files(root: Path):
