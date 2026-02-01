@@ -49,6 +49,27 @@ jobs:
       - name: Install uv
         run: pip install uv
 
+      # Cache Dify Docker images to speed up subsequent runs
+      - name: Cache Dify Docker images
+        uses: actions/cache@v4
+        id: dify-cache
+        with:
+          path: /tmp/dify-images
+          key: dify-images-${{ env.DIFY_REF }}-v1
+          restore-keys: |
+            dify-images-${{ env.DIFY_REF }}-
+
+      - name: Load cached Dify images
+        if: steps.dify-cache.outputs.cache-hit == 'true'
+        run: |
+          echo "Loading cached Dify images..."
+          for img in /tmp/dify-images/*.tar; do
+            if [ -f "$img" ]; then
+              docker load -i "$img" || true
+            fi
+          done
+          docker images | grep -E "langgenius|dify" || true
+
       - name: Build execd image
         working-directory: components/execd
         run: |
@@ -102,6 +123,30 @@ jobs:
         run: |
           python prepare_dify_compose.py
           echo "Dify compose files ready"
+
+      - name: Pull Dify images
+        working-directory: tests/e2e/dify_plugin/.dify
+        run: |
+          docker compose pull --ignore-pull-failures || true
+          echo "Dify images pulled"
+
+      - name: Save Dify images to cache
+        if: steps.dify-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/dify-images
+          # Save main Dify images for caching (versions from 1.11.4 docker-compose)
+          for img in \
+            "langgenius/dify-api:${{ env.DIFY_REF }}" \
+            "langgenius/dify-web:${{ env.DIFY_REF }}" \
+            "langgenius/dify-sandbox:0.2.12" \
+            "langgenius/dify-plugin-daemon:0.5.2-local"; do
+            name=$(echo "$img" | tr '/:' '_')
+            if docker image inspect "$img" >/dev/null 2>&1; then
+              echo "Saving $img..."
+              docker save "$img" -o "/tmp/dify-images/${name}.tar" || true
+            fi
+          done
+          ls -lh /tmp/dify-images/ || true
 
       - name: Start Dify
         working-directory: tests/e2e/dify_plugin/.dify
