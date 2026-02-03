@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from dify_plugin import ToolProvider
@@ -32,10 +33,14 @@ def _normalize_domain(base_url: str) -> str:
 
 class OpenSandboxProvider(ToolProvider):
     def _validate_credentials(self, credentials: dict[str, Any]) -> None:
-        base_url = credentials.get("opensandbox_base_url", "")
-        api_key = credentials.get("opensandbox_api_key", "")
+        # Try credentials first, then fall back to environment variables
+        base_url = credentials.get("opensandbox_base_url", "") or os.environ.get("OPENSANDBOX_BASE_URL", "")
+        api_key = credentials.get("opensandbox_api_key", "") or os.environ.get("OPENSANDBOX_API_KEY", "")
         if not base_url or not api_key:
-            raise ToolProviderCredentialValidationError("Missing OpenSandbox base URL or API key.")
+            raise ToolProviderCredentialValidationError(
+                "Missing OpenSandbox base URL or API key. "
+                "Provide via credentials or OPENSANDBOX_BASE_URL/OPENSANDBOX_API_KEY env vars."
+            )
 
         config = ConnectionConfigSync(
             domain=_normalize_domain(base_url),

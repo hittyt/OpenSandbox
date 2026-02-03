@@ -13,7 +13,7 @@ identity:
 credentials_for_provider:
   opensandbox_base_url:
     type: text-input
-    required: true
+    required: false
     label:
       en_US: OpenSandbox base URL
       zh_Hans: OpenSandbox 基础地址
@@ -21,11 +21,11 @@ credentials_for_provider:
       en_US: http://localhost:8080
       zh_Hans: http://localhost:8080
     help:
-      en_US: Base URL of your OpenSandbox server (without /v1).
-      zh_Hans: 你的 OpenSandbox 服务地址（不包含 /v1）。
+      en_US: Base URL of your OpenSandbox server (without /v1). Falls back to OPENSANDBOX_BASE_URL env var.
+      zh_Hans: 你的 OpenSandbox 服务地址（不包含 /v1）。如未填写，将使用 OPENSANDBOX_BASE_URL 环境变量。
   opensandbox_api_key:
     type: secret-input
-    required: true
+    required: false
     label:
       en_US: OpenSandbox API Key
       zh_Hans: OpenSandbox API Key
@@ -33,8 +33,8 @@ credentials_for_provider:
       en_US: sk-...
       zh_Hans: sk-...
     help:
-      en_US: API key for OpenSandbox server authentication.
-      zh_Hans: 用于 OpenSandbox 服务鉴权的 API Key。
+      en_US: API key for OpenSandbox server authentication. Falls back to OPENSANDBOX_API_KEY env var.
+      zh_Hans: 用于 OpenSandbox 服务鉴权的 API Key。如未填写，将使用 OPENSANDBOX_API_KEY 环境变量。
 tools:
   - tools/sandbox_create.yaml
   - tools/sandbox_run.yaml

@@ -9,7 +9,7 @@ on:
       - 'sdks/sandbox/python/**'
       - 'server/**'
   push:
-    branches: [main, 'feat/**', 'feature/**']
+    branches: [main]
     paths:
       - 'integrations/dify-plugin/**'
       - 'tests/e2e/dify_plugin/**'
