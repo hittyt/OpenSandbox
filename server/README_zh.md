@@ -68,6 +68,19 @@ cp example.config.k8s.zh.toml ~/.sandbox.toml
 cp example.batchsandbox-template.yaml ~/batchsandbox-template.yaml
 ```
 
+**通过 CLI 生成配置**：
+
+- 拷贝打包示例（用于快速 e2e/demo，需要指定示例）：
+  ```bash
+  opensandbox-server init-config ~/.sandbox.toml --example docker  # 或 docker-zh|k8s|k8s-zh
+  # 已有文件需覆盖时加 --force
+  ```
+- 省略 `--example` 时生成“配置框架”（无默认值，只有占位符）：
+  ```bash
+  opensandbox-server init-config ~/.sandbox.toml
+  # 已有文件需覆盖时加 --force
+  ```
+
 **[可选] 编辑 `~/.sandbox.toml`** 适配您的环境：
 
 

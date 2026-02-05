@@ -65,6 +65,19 @@ cp example.config.k8s.toml ~/.sandbox.toml
 cp example.batchsandbox-template.yaml ~/batchsandbox-template.yaml
 ```
 
+**Generate configs via CLI**:
+
+- Copy packaged example for quick e2e/demo (specify which one):
+  ```bash
+  opensandbox-server init-config ~/.sandbox.toml --example docker  # or docker-zh|k8s|k8s-zh
+  # add --force to overwrite existing file
+  ```
+- Render the full schema-driven skeleton (no defaults, just placeholders) by omitting --example:
+  ```bash
+  opensandbox-server init-config ~/.sandbox.toml
+  # add --force to overwrite existing file
+  ```
+
 **[optional] Edit `~/.sandbox.toml`** for your environment:
 
 **Option A: Docker runtime + host networking (default)**
