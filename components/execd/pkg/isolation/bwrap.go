@@ -35,10 +35,11 @@ import (
 //  5. --dev /dev
 //  6. --proc /proc
 //  7. Workspace segment
-//  8. extra_writable segment
-//  9. Env segment
-//  10. --seccomp <fd>
-//  11. -- setpriv ... <user cmd>
+//  8. bind_mounts segment
+//  9. extra_writable segment
+//  10. Env segment
+//  11. --seccomp <fd>
+//  12. -- setpriv ... <user cmd>
 func buildArgv(opts WrapOptions, seccompFd string) ([]string, error) {
 	if err := validateWrapOptions(opts); err != nil {
 		return nil, err
@@ -83,22 +84,27 @@ func buildArgv(opts WrapOptions, seccompFd string) ([]string, error) {
 		argv = append(argv, "--tmpfs", upperRoot)
 	}
 
-	// 8. Extra writable paths.
+	// 8. Session-scoped bind mounts.
+	for _, mount := range opts.BindMounts {
+		argv = append(argv, bwrapBindMountSegment(mount)...)
+	}
+
+	// 9. Extra writable paths.
 	for _, p := range opts.ExtraWritable {
 		argv = append(argv, "--bind", p, p)
 	}
 
-	// 9. Environment segment.
+	// 10. Environment segment.
 	argv = append(argv, bwrapEnvSegment(opts.EnvPassthrough)...)
 
-	// 10. Seccomp (optional). bwrap --seccomp takes a decimal fd number.
+	// 11. Seccomp (optional). bwrap --seccomp takes a decimal fd number.
 	// The caller opens the BPF file, adds it to ExtraFiles, and passes the
 	// child-side fd number here.
 	if seccompFd != "" {
 		argv = append(argv, "--seccomp", seccompFd)
 	}
 
-	// 11. setpriv + user command.
+	// 12. setpriv + user command.
 	// The user command is appended by the caller via cmd.Args after Wrap.
 	argv = append(argv, "--")
 
@@ -138,6 +144,41 @@ func validateWrapOptions(opts WrapOptions) error {
 	}
 	if !opts.EnvPassthrough.Mode.Valid() && opts.EnvPassthrough.Mode != "" {
 		return fmt.Errorf("isolation: unknown env mode %q", opts.EnvPassthrough.Mode)
+	}
+	if err := validateBindMounts(opts.BindMounts); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateBindMounts(mounts []BindMount) error {
+	targets := make(map[string]struct{}, len(mounts))
+	for i, mount := range mounts {
+		if mount.Source == "" {
+			return fmt.Errorf("isolation: bind_mounts[%d].source is required", i)
+		}
+		if !filepath.IsAbs(mount.Source) {
+			return fmt.Errorf("isolation: bind_mounts[%d].source must be an absolute path", i)
+		}
+		source := filepath.Clean(mount.Source)
+		if source == string(filepath.Separator) {
+			return fmt.Errorf("isolation: bind_mounts[%d].source must not be /", i)
+		}
+
+		if mount.Target == "" {
+			return fmt.Errorf("isolation: bind_mounts[%d].target is required", i)
+		}
+		if !filepath.IsAbs(mount.Target) {
+			return fmt.Errorf("isolation: bind_mounts[%d].target must be an absolute path", i)
+		}
+		target := filepath.Clean(mount.Target)
+		if target == string(filepath.Separator) {
+			return fmt.Errorf("isolation: bind_mounts[%d].target must not be /", i)
+		}
+		if _, ok := targets[target]; ok {
+			return fmt.Errorf("isolation: bind_mounts[%d].target duplicates %q", i, target)
+		}
+		targets[target] = struct{}{}
 	}
 	return nil
 }
@@ -179,6 +220,14 @@ func bwrapWorkspaceSegment(opts WrapOptions) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("isolation: unknown workspace mode %q", ws.Mode)
 	}
+}
+
+func bwrapBindMountSegment(mount BindMount) []string {
+	flag := "--bind"
+	if mount.ReadOnly {
+		flag = "--ro-bind"
+	}
+	return []string{flag, filepath.Clean(mount.Source), filepath.Clean(mount.Target)}
 }
 
 // unsetBlacklistedEnv returns --unsetenv args for all env vars matching strictEnvBlacklist.

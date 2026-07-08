@@ -215,6 +215,20 @@ func TestBuildArgv_ExtraWritable(t *testing.T) {
 	}
 }
 
+func TestBuildArgv_BindMounts(t *testing.T) {
+	opts := basicWrapOpts()
+	opts.BindMounts = []BindMount{
+		{Source: "/var/lib/execd/mounts/session-1/data/.", Target: "/mnt/data/."},
+		{Source: "/var/lib/execd/mounts/session-1/models", Target: "/mnt/models", ReadOnly: true},
+	}
+
+	argv, err := buildArgv(opts, "")
+	require.NoError(t, err)
+
+	assertArgvSequence(t, argv, []string{"--bind", "/var/lib/execd/mounts/session-1/data", "/mnt/data"})
+	assertArgvSequence(t, argv, []string{"--ro-bind", "/var/lib/execd/mounts/session-1/models", "/mnt/models"})
+}
+
 func TestBuildArgv_Setpriv(t *testing.T) {
 	t.Run("default_uid_gid", func(t *testing.T) {
 		opts := basicWrapOpts()
@@ -263,6 +277,7 @@ func TestBuildArgv_SegmentOrder(t *testing.T) {
 	opts.Profile = ProfileStrict
 	opts.Workspace.Mode = WorkspaceOverlay
 	opts.UpperDir = "/tmp/upper"
+	opts.BindMounts = []BindMount{{Source: "/var/lib/execd/mounts/session-1/data", Target: "/mnt/data", ReadOnly: true}}
 	opts.ExtraWritable = []string{"/data"}
 	opts.EnvPassthrough = EnvSpec{Mode: EnvModeDeny, Keys: []string{"TOKEN"}}
 
@@ -275,25 +290,26 @@ func TestBuildArgv_SegmentOrder(t *testing.T) {
 	// and comparing the index of the first segment element.
 	type seg struct {
 		label string
-		match string // single argv element
+		match []string
 	}
 	order := []seg{
-		{"1.ns", "--unshare-pid"},
-		{"2.rootfs", "--ro-bind"},
-		{"3.tmp", "/tmp"},
-		{"4.run", "/run"},
-		{"5.dev", "--dev"},
-		{"6.proc", "--proc"},
-		{"7.workspace", "--overlay-src"},
-		{"8.extra_writable", "--bind"},
-		{"9.env", "--unsetenv"},
-		{"10.seccomp", "--seccomp"},
-		{"11.setpriv", "setpriv"},
+		{"1.ns", []string{"--unshare-pid"}},
+		{"2.rootfs", []string{"--ro-bind", "/", "/"}},
+		{"3.tmp", []string{"--tmpfs", "/tmp"}},
+		{"4.run", []string{"--tmpfs", "/run"}},
+		{"5.dev", []string{"--dev", "/dev"}},
+		{"6.proc", []string{"--proc", "/proc"}},
+		{"7.workspace", []string{"--overlay-src", "/workspace"}},
+		{"8.bind_mounts", []string{"--ro-bind", "/var/lib/execd/mounts/session-1/data", "/mnt/data"}},
+		{"9.extra_writable", []string{"--bind", "/data", "/data"}},
+		{"10.env", []string{"--unsetenv", "TOKEN"}},
+		{"11.seccomp", []string{"--seccomp", "3"}},
+		{"12.setpriv", []string{"setpriv"}},
 	}
 
 	lastIdx := -1
 	for _, s := range order {
-		idx := indexOf(argv, s.match)
+		idx := indexOfSequence(argv, s.match)
 		if idx < 0 {
 			t.Errorf("segment %s (%q) not found in argv:\n  %v", s.label, s.match, argv)
 			continue
@@ -306,6 +322,12 @@ func TestBuildArgv_SegmentOrder(t *testing.T) {
 }
 
 func TestBuildArgv_Validation(t *testing.T) {
+	withBindMounts := func(mounts []BindMount) WrapOptions {
+		opts := basicWrapOpts()
+		opts.BindMounts = mounts
+		return opts
+	}
+
 	tests := []struct {
 		name string
 		opts WrapOptions
@@ -314,6 +336,44 @@ func TestBuildArgv_Validation(t *testing.T) {
 		{"empty_workspace", WrapOptions{}, "workspace.path is required"},
 		{"bad_profile", WrapOptions{Workspace: WorkspaceSpec{Path: "/ws", Mode: WorkspaceRW}, Profile: "bogus"}, "unknown profile"},
 		{"bad_mode", WrapOptions{Profile: ProfileBalanced, Workspace: WorkspaceSpec{Path: "/ws", Mode: "bogus"}}, "unknown workspace mode"},
+		{
+			"bind_mount_empty_source",
+			withBindMounts([]BindMount{{Target: "/mnt/data"}}),
+			"bind_mounts[0].source is required",
+		},
+		{
+			"bind_mount_relative_source",
+			withBindMounts([]BindMount{{Source: "data", Target: "/mnt/data"}}),
+			"bind_mounts[0].source must be an absolute path",
+		},
+		{
+			"bind_mount_root_source",
+			withBindMounts([]BindMount{{Source: "/", Target: "/mnt/data"}}),
+			"bind_mounts[0].source must not be /",
+		},
+		{
+			"bind_mount_empty_target",
+			withBindMounts([]BindMount{{Source: "/var/lib/execd/mounts/session-1/data"}}),
+			"bind_mounts[0].target is required",
+		},
+		{
+			"bind_mount_relative_target",
+			withBindMounts([]BindMount{{Source: "/var/lib/execd/mounts/session-1/data", Target: "data"}}),
+			"bind_mounts[0].target must be an absolute path",
+		},
+		{
+			"bind_mount_root_target",
+			withBindMounts([]BindMount{{Source: "/var/lib/execd/mounts/session-1/data", Target: "/"}}),
+			"bind_mounts[0].target must not be /",
+		},
+		{
+			"bind_mount_duplicate_target",
+			withBindMounts([]BindMount{
+				{Source: "/var/lib/execd/mounts/session-1/data", Target: "/mnt/data"},
+				{Source: "/var/lib/execd/mounts/session-1/data-copy", Target: "/mnt/data/"},
+			}),
+			"bind_mounts[1].target duplicates",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -446,6 +506,32 @@ func indexOf(items []string, s string) int {
 		}
 	}
 	return -1
+}
+
+func indexOfSequence(items []string, seq []string) int {
+	if len(seq) == 0 || len(seq) > len(items) {
+		return -1
+	}
+	for i := 0; i <= len(items)-len(seq); i++ {
+		matched := true
+		for j := range seq {
+			if items[i+j] != seq[j] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return i
+		}
+	}
+	return -1
+}
+
+func assertArgvSequence(t *testing.T, argv []string, seq []string) {
+	t.Helper()
+	if indexOfSequence(argv, seq) < 0 {
+		t.Fatalf("argv sequence %q not found in:\n  %v", seq, argv)
+	}
 }
 
 // Ensure unused import vars don't break compilation on non-test.

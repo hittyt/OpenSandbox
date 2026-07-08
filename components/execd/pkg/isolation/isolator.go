@@ -67,6 +67,13 @@ type WorkspaceSpec struct {
 	Mode WorkspaceMode
 }
 
+// BindMount describes a host path mounted into the isolated namespace.
+type BindMount struct {
+	Source   string
+	Target   string
+	ReadOnly bool
+}
+
 // EnvSpec controls environment variable passthrough into the namespace.
 type EnvSpec struct {
 	Mode EnvMode
@@ -95,6 +102,7 @@ type Capabilities struct {
 type WrapOptions struct {
 	Profile        Profile
 	Workspace      WorkspaceSpec
+	BindMounts     []BindMount
 	ExtraWritable  []string
 	ShareNet       bool
 	EnvPassthrough EnvSpec
