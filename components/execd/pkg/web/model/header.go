@@ -17,4 +17,13 @@ package model
 const (
 	// ApiAccessTokenHeader carries the auth token.
 	ApiAccessTokenHeader = "X-EXECD-ACCESS-TOKEN"
+	// SessionCapabilityHeader carries the one-time secret returned when an
+	// isolated session is created.
+	SessionCapabilityHeader = "X-OpenSandbox-Session-Capability"
+	// ManagerControlHeaderPrefix reserves signed manager-to-execd control
+	// headers. They must never be forwarded to a user workload.
+	ManagerControlHeaderPrefix = "X-EXECD-MANAGER-"
+	// LegacyManagerControlHeaderPrefix is stripped as a defense-in-depth
+	// compatibility boundary for early manager integrations.
+	LegacyManagerControlHeaderPrefix = "X-OpenSandbox-Manager-"
 )

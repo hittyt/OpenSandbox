@@ -68,6 +68,10 @@ type BindMount struct {
 type IsolatedCreateSessionResponse struct {
 	SessionID string    `json:"session_id"`
 	CreatedAt time.Time `json:"created_at"`
+	// Capability authorizes subsequent session-scoped requests when execd is
+	// running in capability auth mode. It is returned only by create and is
+	// never persisted in plaintext by execd.
+	Capability string `json:"capability,omitempty"`
 }
 
 // Validate checks CreateIsolatedSessionRequest fields.
@@ -176,12 +180,14 @@ type ListIsolatedSessionsResponse struct {
 
 // CapabilitiesResponse is returned by GET /v1/isolated/capabilities.
 type CapabilitiesResponse struct {
-	Available        bool   `json:"available"`
-	Isolator         string `json:"isolator,omitempty"`
-	Version          string `json:"version,omitempty"`
-	Message          string `json:"message,omitempty"`
-	SetprivAvailable bool   `json:"setpriv_available"`
-	UsernsAvailable  bool   `json:"userns_available"`
-	CommitSupported  bool   `json:"commit_supported"`
-	DiffSupported    bool   `json:"diff_supported"`
+	Available                 bool   `json:"available"`
+	Isolator                  string `json:"isolator,omitempty"`
+	Version                   string `json:"version,omitempty"`
+	Message                   string `json:"message,omitempty"`
+	SetprivAvailable          bool   `json:"setpriv_available"`
+	UsernsAvailable           bool   `json:"userns_available"`
+	CommitSupported           bool   `json:"commit_supported"`
+	DiffSupported             bool   `json:"diff_supported"`
+	SessionAuthMode           string `json:"session_auth_mode"`
+	SessionCapabilityRequired bool   `json:"session_capability_required"`
 }

@@ -55,6 +55,7 @@ func TestCapabilities_ReportsModeSpecificProbeResults(t *testing.T) {
 	})
 
 	ctx, recorder := newTestContext(http.MethodGet, "/v1/isolated/capabilities", nil)
+	ctx.Set(isolatedSessionAuthModeContextKey, IsolatedSessionAuthModeLegacy)
 	NewIsolatedSessionController(ctx).Capabilities()
 
 	if recorder.Code != http.StatusOK {

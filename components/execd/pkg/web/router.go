@@ -26,9 +26,21 @@ import (
 
 // NewRouter builds a Gin engine with all execd routes.
 func NewRouter(accessToken string) *gin.Engine {
+	return NewRouterWithIsolatedSessionAuthMode(
+		accessToken,
+		controller.IsolatedSessionAuthModeLegacy,
+	)
+}
+
+// NewRouterWithIsolatedSessionAuthMode builds a Gin engine with an explicit,
+// already-validated isolated-session authorization mode.
+func NewRouterWithIsolatedSessionAuthMode(
+	accessToken string,
+	authMode controller.IsolatedSessionAuthMode,
+) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(safeRecoveryMiddleware())
 	r.Use(logMiddleware(), otelHTTPMetricsMiddleware(), accessTokenMiddleware(accessToken), ProxyMiddleware())
 
 	r.GET("/ping", controller.PingHandler)
@@ -92,27 +104,39 @@ func NewRouter(accessToken string) *gin.Engine {
 		pty.GET("/:sessionId/ws", controller.PTYSessionWebSocket)
 	}
 
-	isolated := r.Group("/v1/isolated")
+	isolated := r.Group(
+		"/v1/isolated",
+		controller.WithIsolatedSessionAuthMode(authMode),
+	)
 	{
 		isolated.POST("/session", withIsolated(func(c *controller.IsolatedSessionController) { c.Create() }))
 		isolated.GET("/sessions", withIsolated(func(c *controller.IsolatedSessionController) { c.List() }))
-		isolated.GET("/session/:sessionId", withIsolated(func(c *controller.IsolatedSessionController) { c.Get() }))
-		isolated.POST("/session/:sessionId/run", withIsolated(func(c *controller.IsolatedSessionController) { c.Run() }))
-		isolated.DELETE("/session/:sessionId", withIsolated(func(c *controller.IsolatedSessionController) { c.Delete() }))
-		isolated.GET("/session/:sessionId/diff", withIsolated(func(c *controller.IsolatedSessionController) { c.Diff() }))
-		isolated.POST("/session/:sessionId/commit", withIsolated(func(c *controller.IsolatedSessionController) { c.Commit() }))
-		isolated.GET("/session/:sessionId/files/info", withIsolated(func(c *controller.IsolatedSessionController) { c.GetFilesInfo() }))
-		isolated.GET("/session/:sessionId/files/download", withIsolated(func(c *controller.IsolatedSessionController) { c.DownloadFile() }))
-		isolated.POST("/session/:sessionId/files/upload", withIsolated(func(c *controller.IsolatedSessionController) { c.UploadFile() }))
-		isolated.DELETE("/session/:sessionId/files", withIsolated(func(c *controller.IsolatedSessionController) { c.RemoveFiles() }))
-		isolated.POST("/session/:sessionId/files/mv", withIsolated(func(c *controller.IsolatedSessionController) { c.RenameFiles() }))
-		isolated.POST("/session/:sessionId/files/permissions", withIsolated(func(c *controller.IsolatedSessionController) { c.ChmodFiles() }))
-		isolated.POST("/session/:sessionId/files/replace", withIsolated(func(c *controller.IsolatedSessionController) { c.ReplaceContent() }))
-		isolated.GET("/session/:sessionId/files/search", withIsolated(func(c *controller.IsolatedSessionController) { c.SearchFiles() }))
-		isolated.GET("/session/:sessionId/directories/list", withIsolated(func(c *controller.IsolatedSessionController) { c.ListDirectory() }))
-		isolated.POST("/session/:sessionId/directories", withIsolated(func(c *controller.IsolatedSessionController) { c.MakeDirs() }))
-		isolated.DELETE("/session/:sessionId/directories", withIsolated(func(c *controller.IsolatedSessionController) { c.RemoveDirs() }))
 		isolated.GET("/capabilities", withIsolated(func(c *controller.IsolatedSessionController) { c.Capabilities() }))
+
+		session := isolated.Group("/session/:sessionId")
+		session.DELETE(
+			"",
+			controller.RequireIsolatedSessionDeleteCapability,
+			withIsolated(func(c *controller.IsolatedSessionController) { c.Delete() }),
+		)
+		session.Use(controller.RequireIsolatedSessionCapability)
+		{
+			session.GET("", withIsolated(func(c *controller.IsolatedSessionController) { c.Get() }))
+			session.POST("/run", withIsolated(func(c *controller.IsolatedSessionController) { c.Run() }))
+			session.GET("/diff", withIsolated(func(c *controller.IsolatedSessionController) { c.Diff() }))
+			session.POST("/commit", withIsolated(func(c *controller.IsolatedSessionController) { c.Commit() }))
+			session.GET("/files/info", withIsolated(func(c *controller.IsolatedSessionController) { c.GetFilesInfo() }))
+			session.GET("/files/download", withIsolated(func(c *controller.IsolatedSessionController) { c.DownloadFile() }))
+			session.POST("/files/upload", withIsolated(func(c *controller.IsolatedSessionController) { c.UploadFile() }))
+			session.DELETE("/files", withIsolated(func(c *controller.IsolatedSessionController) { c.RemoveFiles() }))
+			session.POST("/files/mv", withIsolated(func(c *controller.IsolatedSessionController) { c.RenameFiles() }))
+			session.POST("/files/permissions", withIsolated(func(c *controller.IsolatedSessionController) { c.ChmodFiles() }))
+			session.POST("/files/replace", withIsolated(func(c *controller.IsolatedSessionController) { c.ReplaceContent() }))
+			session.GET("/files/search", withIsolated(func(c *controller.IsolatedSessionController) { c.SearchFiles() }))
+			session.GET("/directories/list", withIsolated(func(c *controller.IsolatedSessionController) { c.ListDirectory() }))
+			session.POST("/directories", withIsolated(func(c *controller.IsolatedSessionController) { c.MakeDirs() }))
+			session.DELETE("/directories", withIsolated(func(c *controller.IsolatedSessionController) { c.RemoveDirs() }))
+		}
 	}
 
 	return r
@@ -169,7 +193,43 @@ func accessTokenMiddleware(token string) gin.HandlerFunc {
 
 func logMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		log.Info("Requested: %v - %v", ctx.Request.Method, ctx.Request.URL.String())
+		method := ctx.Request.Method
+		ctx.Next()
+
+		// Log only the registered route template. Caller-controlled query
+		// strings and concrete path values may contain misplaced credentials.
+		route := ctx.FullPath()
+		if route == "" {
+			route = "<unmatched>"
+		}
+		log.Info("Requested: %v - %v", method, route)
+	}
+}
+
+// safeRecoveryMiddleware recovers without dumping request headers or URLs.
+// Gin's stock recovery may include an HTTP request dump on some panic paths,
+// which is unsafe once request headers can carry session capabilities.
+func safeRecoveryMiddleware() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		defer func() {
+			if recover() == nil {
+				return
+			}
+			route := ctx.FullPath()
+			if route == "" {
+				route = "<unmatched>"
+			}
+			log.Error(
+				"Recovered panic while handling %s %s",
+				ctx.Request.Method,
+				route,
+			)
+			if !ctx.Writer.Written() {
+				ctx.AbortWithStatus(http.StatusInternalServerError)
+			} else {
+				ctx.Abort()
+			}
+		}()
 		ctx.Next()
 	}
 }

@@ -17,18 +17,23 @@ package model
 type ErrorCode string
 
 const (
-	ErrorCodeInvalidRequest      ErrorCode = "INVALID_REQUEST_BODY"
-	ErrorCodeMissingQuery        ErrorCode = "MISSING_QUERY"
-	ErrorCodeRuntimeError        ErrorCode = "RUNTIME_ERROR"
-	ErrorCodeInvalidFile         ErrorCode = "INVALID_FILE"
-	ErrorCodeInvalidFileContent  ErrorCode = "INVALID_FILE_CONTENT"
-	ErrorCodeInvalidFileMetadata ErrorCode = "INVALID_FILE_METADATA"
-	ErrorCodeFileNotFound        ErrorCode = "FILE_NOT_FOUND"
-	ErrorCodeUnknown             ErrorCode = "UNKNOWN"
-	ErrorCodeContextNotFound     ErrorCode = "CONTEXT_NOT_FOUND"
-	ErrorCodeNotSupported        ErrorCode = "NOT_SUPPORTED"
-	ErrorCodeServiceUnavailable  ErrorCode = "SERVICE_UNAVAILABLE"
-	ErrorCodeSessionNotFound     ErrorCode = "SESSION_NOT_FOUND"
+	ErrorCodeInvalidRequest                   ErrorCode = "INVALID_REQUEST_BODY"
+	ErrorCodeMissingQuery                     ErrorCode = "MISSING_QUERY"
+	ErrorCodeRuntimeError                     ErrorCode = "RUNTIME_ERROR"
+	ErrorCodeInvalidFile                      ErrorCode = "INVALID_FILE"
+	ErrorCodeInvalidFileContent               ErrorCode = "INVALID_FILE_CONTENT"
+	ErrorCodeInvalidFileMetadata              ErrorCode = "INVALID_FILE_METADATA"
+	ErrorCodeFileNotFound                     ErrorCode = "FILE_NOT_FOUND"
+	ErrorCodeUnknown                          ErrorCode = "UNKNOWN"
+	ErrorCodeContextNotFound                  ErrorCode = "CONTEXT_NOT_FOUND"
+	ErrorCodeNotSupported                     ErrorCode = "NOT_SUPPORTED"
+	ErrorCodeServiceUnavailable               ErrorCode = "SERVICE_UNAVAILABLE"
+	ErrorCodeSessionNotFound                  ErrorCode = "SESSION_NOT_FOUND"
+	ErrorCodeSessionCapabilityInvalid         ErrorCode = "SESSION_CAPABILITY_INVALID"
+	ErrorCodeSessionListForbidden             ErrorCode = "SESSION_LIST_FORBIDDEN"
+	ErrorCodeSessionTeardownTimeout           ErrorCode = "SESSION_TEARDOWN_TIMEOUT"
+	ErrorCodeSessionSharedNetworkForbidden    ErrorCode = "SESSION_SHARED_NETWORK_FORBIDDEN"
+	ErrorCodeSessionNetworkBackendUnavailable ErrorCode = "SESSION_NETWORK_BACKEND_UNAVAILABLE"
 )
 
 type ErrorResponse struct {

@@ -36,6 +36,8 @@ var isolatedRunner *runtime.IsolatedRunner
 // isolatedProbeResult stores the probe result for capabilities reporting.
 var isolatedProbeResult *isolation.ProbeResult
 
+const isolatedSessionDeleteFuncKey = "isolated-session-delete-func"
+
 // InitIsolatedRunner wires the isolated session runner.
 func InitIsolatedRunner(r *runtime.IsolatedRunner) {
 	isolatedRunner = r
@@ -68,6 +70,15 @@ func (c *IsolatedSessionController) Create() {
 		c.RespondError(http.StatusServiceUnavailable, model.ErrorCodeServiceUnavailable, "isolation unavailable")
 		return
 	}
+	mode, ok := IsolatedSessionAuthModeFromContext(c.ctx)
+	if !ok {
+		c.RespondError(
+			http.StatusInternalServerError,
+			model.ErrorCodeRuntimeError,
+			"isolated session auth mode is not configured",
+		)
+		return
+	}
 
 	var req model.CreateIsolatedSessionRequest
 	if err := c.bindJSON(&req); err != nil {
@@ -77,6 +88,27 @@ func (c *IsolatedSessionController) Create() {
 	if err := req.Validate(); err != nil {
 		c.RespondError(http.StatusBadRequest, model.ErrorCodeInvalidRequest, err.Error())
 		return
+	}
+	if mode.CapabilityRequired() {
+		switch {
+		case req.ShareNet == nil:
+			// The hardened omitted/default path requires the one-to-one
+			// network backend and mandatory guard. Until those are ready,
+			// fail closed before any workload or filesystem side effect.
+			c.RespondError(
+				http.StatusServiceUnavailable,
+				model.ErrorCodeSessionNetworkBackendUnavailable,
+				"secure default session network backend is unavailable",
+			)
+			return
+		case *req.ShareNet:
+			c.RespondError(
+				http.StatusBadRequest,
+				model.ErrorCodeSessionSharedNetworkForbidden,
+				"shared network is forbidden for secure isolated sessions",
+			)
+			return
+		}
 	}
 
 	binds := make([]isolation.BindMount, 0, len(req.Binds))
@@ -103,17 +135,24 @@ func (c *IsolatedSessionController) Create() {
 		IdleTimeoutSeconds: req.IdleTimeoutSeconds,
 	}
 
-	sessionID, err := isolatedRunner.CreateIsolatedSession(opts)
+	sessionID, capability, err := isolatedRunner.CreateIsolatedSessionWithCapability(opts)
 	if err != nil {
 		status, code := classifyIsolatedCreateError(err)
 		c.RespondError(status, code, err.Error())
 		return
 	}
 
-	c.ctx.JSON(http.StatusCreated, model.IsolatedCreateSessionResponse{
+	// The capability is a one-time credential. Prevent intermediaries and
+	// browser caches from retaining the create response.
+	c.ctx.Header("Cache-Control", "no-store")
+	response := model.IsolatedCreateSessionResponse{
 		SessionID: sessionID,
 		CreatedAt: time.Now(),
-	})
+	}
+	if mode.CapabilityRequired() {
+		response.Capability = capability
+	}
+	c.ctx.JSON(http.StatusCreated, response)
 }
 
 func classifyIsolatedCreateError(err error) (int, model.ErrorCode) {
@@ -198,6 +237,23 @@ func (c *IsolatedSessionController) Get() {
 func (c *IsolatedSessionController) List() {
 	if !c.probed() {
 		c.RespondError(http.StatusServiceUnavailable, model.ErrorCodeServiceUnavailable, "isolation unavailable")
+		return
+	}
+	mode, ok := IsolatedSessionAuthModeFromContext(c.ctx)
+	if !ok {
+		c.RespondError(
+			http.StatusInternalServerError,
+			model.ErrorCodeRuntimeError,
+			"isolated session auth mode is not configured",
+		)
+		return
+	}
+	if mode.CapabilityRequired() {
+		c.RespondError(
+			http.StatusForbidden,
+			model.ErrorCodeSessionListForbidden,
+			"isolated session listing is disabled in capability mode",
+		)
 		return
 	}
 
@@ -300,10 +356,36 @@ func (c *IsolatedSessionController) Delete() {
 		return
 	}
 
-	sessionID := c.ctx.Param("sessionId")
-	if err := isolatedRunner.DeleteIsolatedSession(sessionID); err != nil {
+	deleteValue, ok := c.ctx.Get(isolatedSessionDeleteFuncKey)
+	if !ok {
+		c.RespondError(
+			http.StatusInternalServerError,
+			model.ErrorCodeRuntimeError,
+			"isolated session delete authorization is not configured",
+		)
+		return
+	}
+	deleteSession, ok := deleteValue.(func() error)
+	if !ok || deleteSession == nil {
+		c.RespondError(
+			http.StatusInternalServerError,
+			model.ErrorCodeRuntimeError,
+			"isolated session delete authorization is invalid",
+		)
+		return
+	}
+
+	if err := deleteSession(); err != nil {
 		if errors.Is(err, runtime.ErrContextNotFound) {
 			c.RespondError(http.StatusNotFound, model.ErrorCodeSessionNotFound, "session not found")
+			return
+		}
+		if errors.Is(err, runtime.ErrSessionTeardownTimeout) {
+			c.RespondError(
+				http.StatusInternalServerError,
+				model.ErrorCodeSessionTeardownTimeout,
+				"isolated session teardown timed out; terminate the sandbox",
+			)
 			return
 		}
 		c.RespondError(http.StatusInternalServerError, model.ErrorCodeRuntimeError, err.Error())
@@ -325,11 +407,22 @@ func (c *IsolatedSessionController) Commit() {
 
 // Capabilities handles GET /v1/isolated/capabilities.
 func (c *IsolatedSessionController) Capabilities() {
+	mode, ok := IsolatedSessionAuthModeFromContext(c.ctx)
+	if !ok {
+		c.RespondError(
+			http.StatusInternalServerError,
+			model.ErrorCodeRuntimeError,
+			"isolated session auth mode is not configured",
+		)
+		return
+	}
 	if isolatedRunner == nil {
 		resp := model.CapabilitiesResponse{
-			Available:       false,
-			CommitSupported: false,
-			DiffSupported:   false,
+			Available:                 false,
+			CommitSupported:           false,
+			DiffSupported:             false,
+			SessionAuthMode:           string(mode),
+			SessionCapabilityRequired: mode.CapabilityRequired(),
 		}
 		if isolatedProbeResult != nil {
 			resp.Isolator = isolatedProbeResult.Isolator
@@ -343,13 +436,15 @@ func (c *IsolatedSessionController) Capabilities() {
 	}
 	caps := isolatedRunner.Capabilities()
 	resp := model.CapabilitiesResponse{
-		Available:        caps.Available,
-		Isolator:         caps.Isolator,
-		Version:          caps.Version,
-		SetprivAvailable: caps.SetprivAvailable,
-		UsernsAvailable:  caps.UsernsAvailable,
-		CommitSupported:  caps.CommitSupported,
-		DiffSupported:    caps.DiffSupported,
+		Available:                 caps.Available,
+		Isolator:                  caps.Isolator,
+		Version:                   caps.Version,
+		SetprivAvailable:          caps.SetprivAvailable,
+		UsernsAvailable:           caps.UsernsAvailable,
+		CommitSupported:           caps.CommitSupported,
+		DiffSupported:             caps.DiffSupported,
+		SessionAuthMode:           string(mode),
+		SessionCapabilityRequired: mode.CapabilityRequired(),
 	}
 	// Probe results indicate overlay capability, not diff/commit implementation.
 	// Diff and commit are Phase 2; do not advertise them as supported.

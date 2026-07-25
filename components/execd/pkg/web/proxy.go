@@ -19,12 +19,14 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/alibaba/opensandbox/execd/pkg/log"
+	"github.com/alibaba/opensandbox/execd/pkg/web/model"
 )
 
 func ProxyMiddleware() gin.HandlerFunc {
@@ -45,7 +47,12 @@ func ProxyMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		port := parts[0]
+		port, ok := parseProxyPort(parts[0])
+		if !ok {
+			http.Error(w, "invalid port", http.StatusBadRequest)
+			c.Abort()
+			return
+		}
 		path := "/"
 		if len(parts) == 2 && parts[1] != "" {
 			path += parts[1]
@@ -70,6 +77,7 @@ func ProxyMiddleware() gin.HandlerFunc {
 			req.URL.RawQuery = r.URL.RawQuery
 			req.URL.RawPath = ""
 			req.RequestURI = ""
+			stripProxyControlHeaders(req.Header)
 
 			req.Header.Set("X-Forwarded-For", getClientIP(r))
 			req.Header.Set("X-Forwarded-Proto", "http")
@@ -96,14 +104,51 @@ func ProxyMiddleware() gin.HandlerFunc {
 		}
 
 		proxy.ErrorHandler = func(rw http.ResponseWriter, req *http.Request, err error) {
-			log.Error("Proxy error: %v, request: %s %s", err, req.Method, req.RequestURI)
+			log.Error(
+				"Proxy upstream request failed: method=%s route=/proxy/:port/*path error_type=%T",
+				req.Method,
+				err,
+			)
 			http.Error(rw, "Bad Gateway", http.StatusBadGateway)
 		}
 
-		log.Info("Proxy: %s %s -> %s (WebSocket: %v)", r.Method, r.RequestURI, target.Host, isWebSocket)
+		log.Info(
+			"Proxy: %s /proxy/:port/*path (WebSocket: %v)",
+			r.Method,
+			isWebSocket,
+		)
 
 		proxy.ServeHTTP(w, r)
 		c.Abort()
+	}
+}
+
+func parseProxyPort(raw string) (string, bool) {
+	if raw == "" || strings.Trim(raw, "0123456789") != "" {
+		return "", false
+	}
+	port, err := strconv.ParseUint(raw, 10, 16)
+	if err != nil || port == 0 {
+		return "", false
+	}
+	return strconv.FormatUint(port, 10), true
+}
+
+func stripProxyControlHeaders(header http.Header) {
+	for key := range header {
+		lowerKey := strings.ToLower(key)
+		if strings.EqualFold(key, model.SessionCapabilityHeader) ||
+			strings.EqualFold(key, model.ApiAccessTokenHeader) ||
+			strings.HasPrefix(
+				lowerKey,
+				strings.ToLower(model.ManagerControlHeaderPrefix),
+			) ||
+			strings.HasPrefix(
+				lowerKey,
+				strings.ToLower(model.LegacyManagerControlHeaderPrefix),
+			) {
+			delete(header, key)
+		}
 	}
 }
 
