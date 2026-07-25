@@ -52,6 +52,23 @@ func main() {
 
 	flag.InitFlags()
 
+	authMode, err := controller.ParseIsolatedSessionAuthMode(
+		flag.IsolatedSessionAuthMode,
+	)
+	if err != nil {
+		log.Error("isolation: auth mode: %v", err)
+		os.Exit(1)
+	}
+	startupGate, err := decideIsolationStartupGate(
+		flag.IsolationEnabled,
+		authMode,
+		flag.ServerAccessToken,
+	)
+	if err != nil {
+		log.Error("isolation: startup gate: %v", err)
+		os.Exit(1)
+	}
+
 	// Load isolation config.
 	isoCfg, err := isolation.LoadConfig(flag.IsolationConfigPath)
 	if err != nil {
@@ -66,6 +83,13 @@ func main() {
 	})
 	log.Info("isolation: available=%v isolator=%s version=%s",
 		isolationProbe.Available, isolationProbe.Isolator, isolationProbe.Version)
+	if err := startupGate.requireProbe(
+		isolationProbe.Available,
+		isolationProbe.Message,
+	); err != nil {
+		log.Error("isolation: startup gate: %v", err)
+		os.Exit(1)
+	}
 
 	log.Init(flag.ServerLogLevel)
 
@@ -78,8 +102,16 @@ func main() {
 	// Init isolation runner if probe succeeded.
 	if isolationProbe.Available {
 		iso := isolation.NewBwrapWithProbe(isoCfg, isolationProbe)
+		if err := startupGate.requireBackend(iso.Available()); err != nil {
+			log.Error("isolation: startup gate: %v", err)
+			os.Exit(1)
+		}
 		runner, err := runtime.NewIsolatedRunner(ctrl, iso, isoCfg)
 		if err != nil {
+			if gateErr := startupGate.requireRunner(err); gateErr != nil {
+				log.Error("isolation: startup gate: %v", gateErr)
+				os.Exit(1)
+			}
 			log.Error("isolation: runner init failed (continuing without isolation): %v", err)
 		} else {
 			isolatedRunner = runner
@@ -96,7 +128,15 @@ func main() {
 		otelShutdown = nil
 	}
 
-	engine := web.NewRouter(flag.ServerAccessToken)
+	log.Info(
+		"isolation: session_auth_mode=%s secure_gate=%v",
+		authMode,
+		startupGate.secure,
+	)
+	engine := web.NewRouterWithIsolatedSessionAuthMode(
+		flag.ServerAccessToken,
+		authMode,
+	)
 	addr := fmt.Sprintf(":%d", flag.ServerPort)
 	listener, err := net.Listen("tcp4", addr)
 	if err != nil {

@@ -42,4 +42,13 @@ var (
 	// IsolationConfigPath points to the TOML isolation config file.
 	// Empty means use built-in defaults.
 	IsolationConfigPath string
+
+	// IsolationEnabled marks sandboxes explicitly admitted by the platform for
+	// secure isolated sessions. It must be paired with capability auth mode.
+	IsolationEnabled bool
+
+	// IsolatedSessionAuthMode controls authorization for isolated-session
+	// routes. "legacy" preserves session-ID-only access; "capability"
+	// requires the per-session capability returned by create.
+	IsolatedSessionAuthMode string
 )

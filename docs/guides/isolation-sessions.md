@@ -50,10 +50,12 @@ Component versions needed for the features covered by this guide:
 - C# SDK >= 0.1.4 (`RunOnceAsync` / `WithSessionAsync`)
 - Go SDK >= 1.0.4 (`IsolationRunOnce` / `IsolationWithSession`)
 
-The `setpriv_available` / `userns_available` fields on
+The `setpriv_available`, `userns_available`, `session_auth_mode`, and
+`session_capability_required` fields on
 [`/capabilities`](#capabilities-and-probing) were added after execd v1.0.21
-and are only present on execd builds from `main` at the time of writing;
-older execd omits both fields (clients must tolerate their absence).
+and are only present on newer execd builds; older execd may omit them. Clients
+must tolerate their absence and interpret missing session-auth fields as
+`legacy` / `false`.
 
 Host requirements (`bwrap` binary, `CAP_SYS_ADMIN`, `overlayfs`, etc.) are
 listed under [Server Configuration → Host Requirements](#server-configuration).
@@ -112,6 +114,7 @@ Non-happy paths:
 | `bwrap` process exited | The next `run` returns an `IsolatedError` SSE event with `session process has exited`; only `ErrContextNotFound` (session ID unknown) becomes an HTTP-level error. `DELETE` + recreate. |
 | Idle timeout reached | GC runs the same teardown as `DELETE`. |
 | Client disconnects mid-SSE | The Gin request context is cancelled and execd sends `SIGINT` to the running command; the run does **not** continue in the background. |
+| Session teardown times out | `DELETE` returns `500 SESSION_TEARDOWN_TIMEOUT`. The manager must terminate the sandbox; operation admission is already revoked, so it must not retry with the same capability. |
 
 ---
 
@@ -123,28 +126,52 @@ Non-happy paths:
 # Probe.
 curl -s http://localhost:44772/v1/isolated/capabilities
 
-# Create.
-SESSION=$(curl -s -X POST http://localhost:44772/v1/isolated/session \
+# Create. In capability mode, this is the only response that contains the
+# capability, so retain it without printing or logging it. Legacy mode and
+# older execd versions omit the field.
+CREATE_RESPONSE=$(curl -s -X POST http://localhost:44772/v1/isolated/session \
   -H "Content-Type: application/json" \
   -d '{
     "profile": "strict",
     "workspace": {"path": "/workspace", "mode": "overlay"},
+    "share_net": false,
     "idle_timeout_seconds": 300
-  }' | jq -r .session_id)
+  }')
+SESSION=$(jq -r .session_id <<<"$CREATE_RESPONSE")
+CAPABILITY=$(jq -r '.capability // empty' <<<"$CREATE_RESPONSE")
+
+# The array is empty in legacy mode and with older execd. In capability mode it
+# adds the required header without putting the secret in the URL.
+SESSION_AUTH=()
+if [[ -n "$CAPABILITY" ]]; then
+  SESSION_AUTH=(-H "X-OpenSandbox-Session-Capability: $CAPABILITY")
+fi
 
 # Run (SSE: stdout / error / complete).
 curl -N -X POST "http://localhost:44772/v1/isolated/session/$SESSION/run" \
+  "${SESSION_AUTH[@]}" \
   -H "Content-Type: application/json" \
   -d '{"code": "export X=1; echo $X", "timeout_seconds": 30}'
 
 # Second run reuses shell state.
 curl -N -X POST "http://localhost:44772/v1/isolated/session/$SESSION/run" \
+  "${SESSION_AUTH[@]}" \
   -H "Content-Type: application/json" \
   -d '{"code": "echo $X"}'  # prints 1
 
 # Delete.
-curl -X DELETE "http://localhost:44772/v1/isolated/session/$SESSION"
+curl -X DELETE "http://localhost:44772/v1/isolated/session/$SESSION" \
+  "${SESSION_AUTH[@]}"
 ```
+
+::: warning Capability-aware SDK required
+The SDK examples below assume execd's default `legacy` session auth mode.
+Before enabling `capability` mode, use an SDK version that retains the
+one-time create response capability and injects
+`X-OpenSandbox-Session-Capability` into every session-scoped request. An SDK
+that only stores a session ID cannot attach to or operate on a capability
+session.
+:::
 
 ### Python SDK
 
@@ -206,19 +233,46 @@ sandbox.isolation().withSession(request) { session ->
 ## Session Lifecycle
 
 Under `/v1/isolated/` on execd. Use `X-EXECD-ACCESS-TOKEN` when execd has
-an access token configured.
+an access token configured. Session capability authorization is independent
+of the execd access token; when both are enabled, clients must send both
+headers.
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/session` | Create; returns `{session_id, created_at}`. |
-| `GET` | `/sessions` | List active sessions. |
-| `GET` | `/session/{id}` | Full state; echoes creation params so a stateless client can rebuild the handle. |
-| `POST` | `/session/{id}/run` | SSE stream: `stdout` / `error` / `complete`. Runs on the same session are serialized. |
-| `DELETE` | `/session/{id}` | Destroy. |
-| `GET` | `/capabilities` | Probe. |
+| `POST` | `/session` | Create; returns `{session_id, created_at}` in `legacy` mode and adds a one-time `capability` in `capability` mode. The field remains optional for older execd compatibility. |
+| `GET` | `/sessions` | List active sessions in `legacy` mode; returns `403 SESSION_LIST_FORBIDDEN` in `capability` mode. |
+| `GET` | `/session/{id}` | Full state; echoes creation params so a client can rebuild the handle. Requires the session capability in `capability` mode. |
+| `POST` | `/session/{id}/run` | SSE stream: `stdout` / `error` / `complete`. Runs on the same session are serialized. Requires the session capability in `capability` mode. |
+| `DELETE` | `/session/{id}` | Destroy. Requires the session capability in `capability` mode. |
+| `GET` | `/capabilities` | Probe the isolator and effective session auth mode. |
 
 `idle_timeout_seconds > 0` destroys idle sessions automatically; set to `0`
 to disable idle GC and always `DELETE` explicitly.
+
+### Session authorization modes
+
+execd selects one process-wide mode at startup:
+
+| Mode | Behavior |
+|---|---|
+| `legacy` (default) | Preserves session-ID-only access, omits the create-response capability, and allows `GET /sessions` for compatibility. |
+| `capability` | Returns a 256-bit URL-safe capability exactly once at session creation. Every route whose path contains `{sessionId}` — including run, delete, diff/commit, file, and directory APIs — requires exactly one `X-OpenSandbox-Session-Capability` header. `GET /sessions` is forbidden, and create currently requires explicit `share_net: false`. |
+
+A missing, malformed, duplicated, or different session's capability returns
+`403 SESSION_CAPABILITY_INVALID`. The same response is used for an unknown
+session ID, so authorization failures do not reveal whether a session exists.
+The capability is a bearer secret: do not put it in URLs, logs, environment
+variables passed into user code, or sandbox metadata.
+
+The create response is the only recovery point for the plaintext capability;
+execd keeps only a digest. If the caller loses the successful create response,
+it cannot recover or rotate the capability; idle cleanup or execd teardown
+must eventually remove the inaccessible session.
+
+If `DELETE` returns `500 SESSION_TEARDOWN_TIMEOUT`, the session workload may
+still be alive but new operation admission has already been revoked. The
+manager must terminate the whole sandbox. Retrying `DELETE` or another
+session-scoped request with the same capability is not a recovery path.
 
 ---
 
@@ -290,8 +344,16 @@ host env passthrough (`"allow"`).
   setuid/setgid drop) or **`"userns"`** (user namespace remap). Check
   `setpriv_available` / `userns_available` from
   [`/capabilities`](#capabilities-and-probing) before requesting a mode.
-- **`share_net: true`** shares the sandbox's network namespace. Sandbox-level
-  egress and Credential Vault policies still apply.
+- **`share_net`** controls the session network namespace:
+
+  | Value | `legacy` mode | `capability` mode |
+  |---|---|---|
+  | omitted | Shares the sandbox network namespace. | Fails closed with `503 SESSION_NETWORK_BACKEND_UNAVAILABLE`; the guarded per-session default backend is not implemented yet. |
+  | `true` | Shares the sandbox network namespace; sandbox-level egress and Credential Vault policies still apply. | Rejected with `400 SESSION_SHARED_NETWORK_FORBIDDEN`. |
+  | `false` | Creates a loopback-only network namespace. | The only currently admitted setting; creates a loopback-only network namespace. |
+
+Both capability-mode failures happen before workload or workspace side
+effects. They must not fall back to the sandbox's shared network namespace.
 
 ---
 
@@ -335,7 +397,9 @@ curl -s http://localhost:44772/v1/isolated/capabilities
   "setpriv_available": true,
   "userns_available": false,
   "commit_supported": false,
-  "diff_supported": false
+  "diff_supported": false,
+  "session_auth_mode": "legacy",
+  "session_capability_required": false
 }
 ```
 
@@ -347,16 +411,51 @@ curl -s http://localhost:44772/v1/isolated/capabilities
   different UID/GID may still return `503 NOT_SUPPORTED` when identity
   switching is unavailable.
 - `commit_supported` / `diff_supported` — Phase 2 stubs, currently return `503`.
+- `session_auth_mode` — the effective `legacy` or `capability` mode.
+- `session_capability_required` — `true` exactly when every session-ID-scoped
+  API requires `X-OpenSandbox-Session-Capability`. Older execd builds omit
+  both auth fields; clients must interpret absence as `legacy` / `false`.
 
 ---
 
 ## Server Configuration
 
-Point execd at an optional TOML file:
+| Flag | Env | Default | Purpose |
+|---|---|---|---|
+| `--isolation-config` | `EXECD_ISOLATION_CONFIG` | empty | Path to the optional isolation TOML file. |
+| `--isolation-enabled` | `EXECD_ISOLATION_ENABLED` | `false` | Server-owned admission gate for secure isolated sessions. |
+| `--isolated-session-auth-mode` | `EXECD_SESSION_AUTH_MODE` | `legacy` | Session authorization mode: `legacy` or `capability`. |
+| `--access-token` | `EXECD_ACCESS_TOKEN` | empty | Shared execd API token sent as `X-EXECD-ACCESS-TOKEN`. |
 
-| Flag | Env |
-|---|---|
-| `--isolation-config` | `EXECD_ISOLATION_CONFIG` |
+Gate A permits exactly two configurations:
+
+- Ordinary compatibility mode: `EXECD_ISOLATION_ENABLED=false` and
+  `EXECD_SESSION_AUTH_MODE=legacy` (both defaults).
+- Secure capability mode: `EXECD_ISOLATION_ENABLED=true`,
+  `EXECD_SESSION_AUTH_MODE=capability`, and a non-empty canonical
+  `EXECD_ACCESS_TOKEN` with no leading or trailing whitespace.
+
+For example:
+
+```bash
+EXECD_ISOLATION_ENABLED=true \
+EXECD_SESSION_AUTH_MODE=capability \
+EXECD_ACCESS_TOKEN="$EXECD_TOKEN" \
+execd
+```
+
+The mode is process-wide and cannot be selected per request or per session.
+Roll out capability-aware clients first, then drain active sessions before
+restarting execd with `capability`. Do not run capability mode with clients
+that only retain session IDs. A mixed Gate A pair, an invalid mode, an empty
+token, or a token padded with whitespace fails execd startup rather than
+falling back to the ordinary path. When secure mode is enabled, callers must
+send both `X-EXECD-ACCESS-TOKEN` and the per-session capability header on
+session-ID-scoped requests. Session creation must also send
+`"share_net": false`; omitted or shared-network requests fail closed with the
+stable errors described under [Environment, UID, and Networking](#environment-uid-and-networking).
+
+The optional TOML file controls namespace and workspace settings:
 
 ```toml
 # Parent directory for per-session overlay upper dirs.

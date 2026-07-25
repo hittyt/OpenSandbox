@@ -18,6 +18,7 @@ import (
 	"flag"
 	stdlog "log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,6 +32,8 @@ const (
 	gracefulShutdownTimeoutEnv = "EXECD_API_GRACE_SHUTDOWN"
 	jupyterIdlePollIntervalEnv = "EXECD_JUPYTER_IDLE_POLL_INTERVAL"
 	isolationConfigEnv         = "EXECD_ISOLATION_CONFIG"
+	isolationEnabledEnv        = "EXECD_ISOLATION_ENABLED"
+	isolatedSessionAuthModeEnv = "EXECD_SESSION_AUTH_MODE"
 )
 
 // InitFlags registers CLI flags and env overrides.
@@ -42,6 +45,8 @@ func InitFlags() {
 	ApiGracefulShutdownTimeout = time.Second * 1
 	JupyterIdlePollInterval = 100 * time.Millisecond
 	IsolationConfigPath = ""
+	IsolationEnabled = false
+	IsolatedSessionAuthMode = "legacy"
 
 	// First, set default values from environment variables
 	if jupyterFromEnv := os.Getenv(jupyterHostEnv); jupyterFromEnv != "" {
@@ -94,6 +99,28 @@ func InitFlags() {
 		IsolationConfigPath = v
 	}
 	flag.StringVar(&IsolationConfigPath, "isolation-config", IsolationConfigPath, "Path to isolation TOML config file (default: built-in defaults)")
+	if v := os.Getenv(isolationEnabledEnv); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			stdlog.Panicf("Failed to parse %s: %v", isolationEnabledEnv, err)
+		}
+		IsolationEnabled = enabled
+	}
+	flag.BoolVar(
+		&IsolationEnabled,
+		"isolation-enabled",
+		IsolationEnabled,
+		"Require fail-closed secure isolated-session startup (default: false)",
+	)
+	if v := os.Getenv(isolatedSessionAuthModeEnv); v != "" {
+		IsolatedSessionAuthMode = v
+	}
+	flag.StringVar(
+		&IsolatedSessionAuthMode,
+		"isolated-session-auth-mode",
+		IsolatedSessionAuthMode,
+		`Isolated-session authorization mode: "legacy" or "capability" (default: legacy)`,
+	)
 
 	// Parse flags - these will override environment variables if provided
 	flag.Parse()

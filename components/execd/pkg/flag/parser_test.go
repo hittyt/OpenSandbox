@@ -71,3 +71,88 @@ func TestInitFlagsCliOverridesEnvAccessToken(t *testing.T) {
 
 	require.Equal(t, "cli-token", ServerAccessToken)
 }
+
+func TestInitFlagsIsolatedSessionAuthMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		env      string
+		args     []string
+		expected string
+	}{
+		{
+			name:     "default legacy",
+			expected: "legacy",
+		},
+		{
+			name:     "environment capability",
+			env:      "capability",
+			expected: "capability",
+		},
+		{
+			name:     "cli overrides environment",
+			env:      "legacy",
+			args:     []string{"--isolated-session-auth-mode=capability"},
+			expected: "capability",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			previousArgs := os.Args
+			previousCommandLine := flag.CommandLine
+			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+			os.Args = append([]string{previousArgs[0]}, tt.args...)
+			t.Cleanup(func() {
+				os.Args = previousArgs
+				flag.CommandLine = previousCommandLine
+			})
+			t.Setenv(isolatedSessionAuthModeEnv, tt.env)
+
+			InitFlags()
+
+			require.Equal(t, tt.expected, IsolatedSessionAuthMode)
+		})
+	}
+}
+
+func TestInitFlagsIsolationEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		env      string
+		args     []string
+		expected bool
+	}{
+		{
+			name: "disabled by default",
+		},
+		{
+			name:     "enabled by environment",
+			env:      "true",
+			expected: true,
+		},
+		{
+			name:     "cli overrides environment",
+			env:      "false",
+			args:     []string{"--isolation-enabled=true"},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			previousArgs := os.Args
+			previousCommandLine := flag.CommandLine
+			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+			os.Args = append([]string{previousArgs[0]}, tt.args...)
+			t.Cleanup(func() {
+				os.Args = previousArgs
+				flag.CommandLine = previousCommandLine
+			})
+			t.Setenv(isolationEnabledEnv, tt.env)
+
+			InitFlags()
+
+			require.Equal(t, tt.expected, IsolationEnabled)
+		})
+	}
+}
