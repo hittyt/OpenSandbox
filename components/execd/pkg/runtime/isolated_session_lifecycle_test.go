@@ -494,6 +494,58 @@ func TestIsolatedSessionStopNeverSignalsAfterProcessWait(t *testing.T) {
 	}
 }
 
+func TestIsolatedSessionExitBarrierSerializesProcessGroupSignal(t *testing.T) {
+	originalKill := killSessionProcessGroup
+	t.Cleanup(func() {
+		killSessionProcessGroup = originalKill
+	})
+
+	killEntered := make(chan struct{})
+	releaseKill := make(chan struct{})
+	killSessionProcessGroup = func(int) error {
+		close(killEntered)
+		<-releaseKill
+		return nil
+	}
+	session := &isolatedSession{
+		cmd:           &exec.Cmd{Process: &os.Process{Pid: 424242}},
+		processWaited: make(chan struct{}),
+	}
+
+	killDone := make(chan error, 1)
+	go func() {
+		killDone <- session.killProcessGroupIfRunning()
+	}()
+	<-killEntered
+
+	barrierStarted := make(chan struct{})
+	barrierDone := make(chan struct{})
+	go func() {
+		close(barrierStarted)
+		session.markProcessExitedBeforeReap(nil)
+		close(barrierDone)
+	}()
+	<-barrierStarted
+	select {
+	case <-barrierDone:
+		t.Fatal("exit barrier bypassed an in-flight process-group signal")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(releaseKill)
+	if err := <-killDone; err != nil {
+		t.Fatal(err)
+	}
+	<-barrierDone
+
+	// Once the pre-reap barrier publishes exit, no later signal may target
+	// the now-reusable numeric group identity. The hook would panic by closing
+	// killEntered a second time if this regressed.
+	if err := session.killProcessGroupIfRunning(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestIsolatedSessionStopIgnoresKillFailureAfterConfirmedDrain(t *testing.T) {
 	originalKill := killSessionProcessGroup
 	t.Cleanup(func() {

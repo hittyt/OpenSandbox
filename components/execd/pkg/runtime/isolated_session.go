@@ -56,6 +56,8 @@ type isolatedSession struct {
 	stdin                io.WriteCloser
 	stdout               io.ReadCloser
 	processWaited        chan struct{} // closed immediately after cmd.Wait returns
+	processSignalMu      sync.Mutex    // serializes process-group signals with the pre-reap barrier
+	processExited        bool          // set before Linux can reap and reuse the numeric PID/PGID
 	doneCh               chan struct{} // closed after process wait and lifecycle drain
 	lifecycleMonitorDone chan struct{} // closed after drain-failure monitor exits
 	upperID              string        // key in UpperManager, used for Release/Remove
@@ -190,7 +192,7 @@ func (s *isolatedSession) start() error {
 	s.lifecycle = lifecycle
 
 	go func() {
-		_ = cmd.Wait()
+		_ = waitCommandWithExitBarrier(cmd, s.markProcessExitedBeforeReap)
 		// Publish process reaping before waiting for lifecycle accounting.
 		// Once Wait returns, the numeric PID/PGID may be reused and must never
 		// be signalled again.
@@ -324,25 +326,39 @@ func (s *isolatedSession) stop() error {
 	return cleanupErr
 }
 
-// killProcessGroupIfRunning prevents a signal after cmd.Wait has returned.
-// A re-check immediately before the syscall mirrors the safety gate used by
-// ordinary command execution: after wait, the numeric PID/PGID can identify an
-// unrelated process group.
+// markProcessExitedBeforeReap publishes the Linux WNOWAIT exit barrier before
+// cmd.Wait can reap and release the numeric PID/PGID. If the kernel barrier
+// itself fails, disable numeric group signals rather than risk targeting a
+// reused identity; the bounded teardown path will force sandbox-level cleanup.
+func (s *isolatedSession) markProcessExitedBeforeReap(barrierErr error) {
+	s.processSignalMu.Lock()
+	defer s.processSignalMu.Unlock()
+
+	if barrierErr != nil {
+		log.Error("isolated session exit barrier failed: %v", barrierErr)
+	}
+	s.processExited = true
+}
+
+// killProcessGroupIfRunning serializes the signal syscall with the Linux
+// pre-reap exit barrier. The group leader remains an unreaped child while this
+// mutex is held, so its numeric PID/PGID cannot be reused for another session.
 func (s *isolatedSession) killProcessGroupIfRunning() error {
 	if s.cmd == nil || s.cmd.Process == nil {
 		return nil
 	}
-	select {
-	case <-s.processWaited:
+	s.processSignalMu.Lock()
+	defer s.processSignalMu.Unlock()
+	if s.processExited {
 		return nil
-	default:
 	}
 	select {
 	case <-s.processWaited:
+		s.processExited = true
 		return nil
 	default:
-		return killSessionProcessGroup(s.cmd.Process.Pid)
 	}
+	return killSessionProcessGroup(s.cmd.Process.Pid)
 }
 
 // dead returns true if the bwrap process has exited.
