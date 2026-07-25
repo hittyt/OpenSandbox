@@ -975,6 +975,9 @@ func TestBwrapLifecycleEndToEnd(t *testing.T) {
 			implementation := &bwrapImpl{
 				probe: ProbeResult{Available: true},
 			}
+			if !implementation.Available() {
+				t.Fatal("lifecycle backend is unavailable despite installed bwrap and gate")
+			}
 			lifecycleInterface, err := implementation.WrapWithLifecycle(
 				command,
 				WrapOptions{

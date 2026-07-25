@@ -18,8 +18,10 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
-	"time"
+	"os/signal"
+	"syscall"
 
 	"github.com/alibaba/opensandbox/internal/version"
 
@@ -37,6 +39,13 @@ import (
 )
 
 func main() {
+	shutdownCtx, stopSignals := signal.NotifyContext(
+		context.Background(),
+		syscall.SIGINT,
+		syscall.SIGTERM,
+	)
+	defer stopSignals()
+
 	clone3Compat := clone3compat.MaybeApply()
 
 	version.EchoVersion("OpenSandbox Execd")
@@ -61,6 +70,7 @@ func main() {
 	log.Init(flag.ServerLogLevel)
 
 	ctrl := controller.InitCodeRunner()
+	var isolatedRunner lifecycleCloser
 
 	// Always store probe result for capabilities endpoint.
 	controller.InitIsolatedProbe(&isolationProbe)
@@ -72,6 +82,7 @@ func main() {
 		if err != nil {
 			log.Error("isolation: runner init failed (continuing without isolation): %v", err)
 		} else {
+			isolatedRunner = runner
 			controller.InitIsolatedRunner(runner)
 			log.Info("isolation: runner ready, upper_root=%s", isoCfg.UpperRoot)
 		}
@@ -84,24 +95,39 @@ func main() {
 		log.Warn("OpenTelemetry metrics disabled (continuing without OTLP): %v", err)
 		otelShutdown = nil
 	}
-	if otelShutdown != nil {
-		defer func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_ = otelShutdown(shutdownCtx)
-		}()
-	}
 
 	engine := web.NewRouter(flag.ServerAccessToken)
 	addr := fmt.Sprintf(":%d", flag.ServerPort)
 	listener, err := net.Listen("tcp4", addr)
 	if err != nil {
+		lifecycle := &processLifecycle{
+			runner:            isolatedRunner,
+			telemetryShutdown: otelShutdown,
+			httpTimeout:       defaultHTTPShutdownTimeout,
+			telemetryTimeout:  defaultTelemetryShutdownTimeout,
+		}
+		if shutdownErr := lifecycle.shutdown(); shutdownErr != nil {
+			log.Error("execd cleanup after listen failure: %v", shutdownErr)
+		}
 		log.Error("failed to listen on %s: %v", addr, err)
 		os.Exit(1)
 	}
+
+	server := &http.Server{
+		Handler: engine,
+	}
+	lifecycle := &processLifecycle{
+		server:            server,
+		runner:            isolatedRunner,
+		telemetryShutdown: otelShutdown,
+		httpTimeout:       defaultHTTPShutdownTimeout,
+		telemetryTimeout:  defaultTelemetryShutdownTimeout,
+	}
+
 	log.Info("execd listening on %s (IPv4)", addr)
-	if err := engine.RunListener(listener); err != nil {
-		log.Error("failed to start execd server: %v", err)
+	if err := serveUntilShutdown(shutdownCtx, server, listener, lifecycle); err != nil {
+		log.Error("execd stopped with error: %v", err)
 		os.Exit(1)
 	}
+	log.Info("execd graceful shutdown complete")
 }

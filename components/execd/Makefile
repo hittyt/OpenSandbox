@@ -39,7 +39,7 @@ GO_LDFLAGS := $(strip $(LDFLAGS) $(PROJECT_LDFLAGS))
 .PHONY: build
 build: vet ## Build the binary.
 	@mkdir -p bin
-	go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o bin/execd main.go
+	go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o bin/execd .
 
 .PHONY: test-integration
 test-integration: ## Run integration tests (Linux + bwrap required).
@@ -53,6 +53,6 @@ multi-build: vet ## Cross-compile for linux/windows/darwin amd64/arm64.
 			out=bin/execd_$(VERSION)_$${os}_$${arch}; \
 			[ "$${os}" = "windows" ] && out="$${out}.exe"; \
 			echo ">> building $${os}/$${arch} -> $${out}"; \
-			GOOS=$${os} GOARCH=$${arch} CGO_ENABLED=0 go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o "$${out}" main.go || exit $$?; \
+			GOOS=$${os} GOARCH=$${arch} CGO_ENABLED=0 go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o "$${out}" . || exit $$?; \
 		done; \
 	done

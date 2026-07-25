@@ -21,3 +21,16 @@ var ErrContextNotFound = errors.New("context not found")
 // ErrUidModeUnavailable indicates that the requested isolation uid mode did
 // not pass the startup capability probe in the current environment.
 var ErrUidModeUnavailable = errors.New("requested uid mode is unavailable")
+
+// ErrSessionTeardownTimeout indicates that a session workload could not be
+// reaped within the bounded teardown window. The containing sandbox must be
+// terminated rather than treating deletion as successful.
+var ErrSessionTeardownTimeout = errors.New("isolated session teardown timed out")
+
+// ErrSessionLifecycleUnavailable indicates that the selected isolator cannot
+// provide a fail-closed startup gate and verified host workload identity.
+var ErrSessionLifecycleUnavailable = errors.New("isolated session lifecycle is unavailable")
+
+// ErrIsolatedRunnerClosed indicates that isolated-session admission has been
+// permanently closed. A closed runner never starts another workload.
+var ErrIsolatedRunnerClosed = errors.New("isolated session runner is closed")

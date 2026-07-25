@@ -19,12 +19,14 @@ package runtime
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -45,6 +47,13 @@ type IsolatedRunner struct {
 	upperMgr        *isolation.UpperManager
 	allowedWritable []string
 	stopGC          chan struct{}
+	gcDone          chan struct{}
+	stopGCOnce      sync.Once
+	closeInitOnce   sync.Once
+	closeMu         sync.Mutex
+	lifecycleMu     sync.Mutex
+	closing         bool
+	createWG        sync.WaitGroup
 }
 
 // NewIsolatedRunner creates the isolated session runner.
@@ -59,6 +68,7 @@ func NewIsolatedRunner(ctrl *Controller, iso isolation.Isolator, cfg isolation.C
 		upperMgr:        mgr,
 		allowedWritable: cfg.AllowedWritable,
 		stopGC:          make(chan struct{}),
+		gcDone:          make(chan struct{}),
 	}
 	go r.gcLoop()
 
@@ -86,6 +96,7 @@ func (r *IsolatedRunner) statsSnapshot() telemetry.IsolationStats {
 func (r *IsolatedRunner) gcLoop() {
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
+	defer close(r.gcDone)
 	for {
 		select {
 		case <-r.stopGC:
@@ -133,20 +144,118 @@ func (r *IsolatedRunner) CollectIdle() {
 		}
 		return true
 	})
+	if err := r.collectReleasedUppers(); err != nil {
+		log.Warn("idle GC: retry released upper directories: %v", err)
+	}
 }
 
-// StopGC stops the background GC goroutine.
+func (r *IsolatedRunner) collectReleasedUppers() error {
+	freed, err := r.upperMgr.CollectWithErrors()
+	for _, id := range freed {
+		log.Info("idle GC: removed released upper directory %s", id)
+	}
+	return err
+}
+
+// StopGC stops the background GC goroutine and waits for it to exit.
 func (r *IsolatedRunner) StopGC() {
-	close(r.stopGC)
+	if r.stopGC == nil {
+		return
+	}
+	r.stopGCOnce.Do(func() {
+		close(r.stopGC)
+	})
+	if r.gcDone != nil {
+		<-r.gcDone
+	}
+}
+
+// Close closes isolated-session admission, stops the collector, waits for any
+// already-admitted create to finish, and tears down every remaining session.
+// It is safe to call concurrently and more than once. Failed cleanup remains
+// registered, so a later Close call can retry it.
+func (r *IsolatedRunner) Close() error {
+	r.closeInitOnce.Do(func() {
+		r.lifecycleMu.Lock()
+		r.closing = true
+		r.lifecycleMu.Unlock()
+
+		r.StopGC()
+
+		// beginCreate registers while holding lifecycleMu. Once closing is
+		// visible no Add can race this Wait.
+		r.createWG.Wait()
+	})
+
+	r.closeMu.Lock()
+	defer r.closeMu.Unlock()
+
+	var sessionIDs []string
+	r.ctrl.isolatedSessionMap.Range(func(key, _ any) bool {
+		id, ok := key.(string)
+		if !ok {
+			r.ctrl.isolatedSessionMap.Delete(key)
+			return true
+		}
+		sessionIDs = append(sessionIDs, id)
+		return true
+	})
+
+	// Teardown attempts run concurrently so one unreapable workload cannot
+	// multiply the bounded per-session stop timeout by the session count.
+	cleanupErrs := make(chan error, len(sessionIDs))
+	var cleanupWG sync.WaitGroup
+	for _, id := range sessionIDs {
+		cleanupWG.Add(1)
+		go func(id string) {
+			defer cleanupWG.Done()
+			if err := r.DeleteIsolatedSession(id); err != nil &&
+				!errors.Is(err, ErrContextNotFound) {
+				cleanupErrs <- fmt.Errorf("delete session %s: %w", id, err)
+			}
+		}(id)
+	}
+	cleanupWG.Wait()
+	close(cleanupErrs)
+
+	var cleanupErr error
+	for err := range cleanupErrs {
+		cleanupErr = errors.Join(cleanupErr, err)
+	}
+	if err := r.collectReleasedUppers(); err != nil {
+		cleanupErr = errors.Join(
+			cleanupErr,
+			fmt.Errorf("collect released upper directories: %w", err),
+		)
+	}
+	return cleanupErr
+}
+
+func (r *IsolatedRunner) beginCreate() error {
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	if r.closing {
+		return ErrIsolatedRunnerClosed
+	}
+	r.createWG.Add(1)
+	return nil
 }
 
 // Available reports whether the isolator is ready.
 func (r *IsolatedRunner) Available() bool {
-	return r.isolator.Available()
+	r.lifecycleMu.Lock()
+	closing := r.closing
+	r.lifecycleMu.Unlock()
+	return !closing && r.isolator.Available()
 }
 
 // CreateIsolatedSession starts a new bwrap + shell session.
 func (r *IsolatedRunner) CreateIsolatedSession(opts *IsolatedSessionOptions) (string, error) {
+	if err := r.beginCreate(); err != nil {
+		return "", err
+	}
+	defer r.createWG.Done()
+
 	if err := r.validateExtraWritable(opts.ExtraWritable); err != nil {
 		return "", err
 	}
@@ -191,10 +300,16 @@ func (r *IsolatedRunner) CreateIsolatedSession(opts *IsolatedSessionOptions) (st
 	}
 
 	if err := session.start(); err != nil {
+		startErr := fmt.Errorf("start bwrap: %w", err)
 		if session.upperID != "" {
-			_ = r.upperMgr.Remove(session.upperID)
+			if cleanupErr := r.upperMgr.Remove(session.upperID); cleanupErr != nil {
+				return "", errors.Join(
+					startErr,
+					fmt.Errorf("remove failed session upper: %w", cleanupErr),
+				)
+			}
 		}
-		return "", fmt.Errorf("start bwrap: %w", err)
+		return "", startErr
 	}
 
 	r.ctrl.isolatedSessionMap.Store(id, session)
@@ -473,17 +588,40 @@ func (r *IsolatedRunner) DeleteIsolatedSession(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.stop(); err != nil {
-		log.Warn("stop isolated session %s: %v", id, err)
+	// A concurrent delete may have completed while this caller waited for the
+	// session lock. Do not stop or remove the same resources twice.
+	if current := r.lookup(id); current != s {
+		return ErrContextNotFound
+	}
+
+	var cleanupErr error
+	if stopErr := s.stop(); stopErr != nil {
+		log.Warn("stop isolated session %s: %v", id, stopErr)
+		cleanupErr = errors.Join(
+			cleanupErr,
+			fmt.Errorf("stop session process: %w", stopErr),
+		)
+		// The process may still be using the overlay. Keep both the map entry
+		// and upper allocation intact so a later Delete or Close can retry.
+		if errors.Is(stopErr, ErrSessionTeardownTimeout) {
+			return cleanupErr
+		}
 	}
 
 	if s.upperID != "" {
 		if err := r.upperMgr.Remove(s.upperID); err != nil {
 			log.Warn("remove upper dir for session %s: %v", id, err)
+			cleanupErr = errors.Join(
+				cleanupErr,
+				fmt.Errorf("remove session upper: %w", err),
+			)
 		}
 	}
 
-	r.ctrl.isolatedSessionMap.Delete(id)
+	r.ctrl.isolatedSessionMap.CompareAndDelete(id, s)
+	if cleanupErr != nil {
+		return cleanupErr
+	}
 	log.Info("deleted isolated session %s", id)
 	return nil
 }

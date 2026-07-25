@@ -17,6 +17,7 @@ package log
 import (
 	"context"
 	"os"
+	"sync"
 
 	slogger "github.com/alibaba/opensandbox/internal/logger"
 	"github.com/alibaba/opensandbox/internal/safego"
@@ -24,13 +25,19 @@ import (
 
 const logFileEnvKey = "EXECD_LOG_FILE"
 
-var current slogger.Logger
+var (
+	currentMu sync.RWMutex
+	current   slogger.Logger
+)
 
 // Init constructs the singleton logger. Call once during startup.
 // Legacy levels: 0/1/2=fatal, 3=error, 4=warn, 5/6=info, 7+=debug.
 func Init(level int) {
-	current = newLogger(mapLevel(level))
-	safego.InitPanicLogger(context.Background(), current)
+	logger := newLogger(mapLevel(level))
+	currentMu.Lock()
+	current = logger
+	currentMu.Unlock()
+	safego.InitPanicLogger(context.Background(), logger)
 }
 
 func mapLevel(level int) string {
@@ -60,12 +67,19 @@ func newLogger(level string) slogger.Logger {
 }
 
 func getLogger() slogger.Logger {
-	if current != nil {
-		return current
+	currentMu.RLock()
+	logger := current
+	currentMu.RUnlock()
+	if logger != nil {
+		return logger
 	}
-	l := newLogger("info")
-	current = l
-	return l
+
+	currentMu.Lock()
+	defer currentMu.Unlock()
+	if current == nil {
+		current = newLogger("info")
+	}
+	return current
 }
 
 func Debug(format string, args ...any) {

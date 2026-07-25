@@ -64,14 +64,14 @@ RUN if [ -n "${CC}" ]; then export CC; fi; \
               -X 'github.com/alibaba/opensandbox/internal/version.Version=${VERSION}' \
               -X 'github.com/alibaba/opensandbox/internal/version.BuildTime=${BUILD_TIME}' \
               -X 'github.com/alibaba/opensandbox/internal/version.GitCommit=${GIT_COMMIT}'" \
-    -o /build/execd ./main.go
+    -o /build/execd .
 
 RUN CGO_ENABLED=0 GOOS=windows go build ${GOFLAGS} -trimpath -buildvcs=false \
     -ldflags "${LDFLAGS} -buildid= -B none \
               -X 'github.com/alibaba/opensandbox/internal/version.Version=${VERSION}' \
               -X 'github.com/alibaba/opensandbox/internal/version.BuildTime=${BUILD_TIME}' \
               -X 'github.com/alibaba/opensandbox/internal/version.GitCommit=${GIT_COMMIT}'" \
-    -o /build/execd.exe ./main.go
+    -o /build/execd.exe .
 
 # Build static bubblewrap with musl.
 FROM alpine:latest AS bwrap-builder
