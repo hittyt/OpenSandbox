@@ -34,3 +34,8 @@ var ErrSessionLifecycleUnavailable = errors.New("isolated session lifecycle is u
 // ErrIsolatedRunnerClosed indicates that isolated-session admission has been
 // permanently closed. A closed runner never starts another workload.
 var ErrIsolatedRunnerClosed = errors.New("isolated session runner is closed")
+
+// ErrSessionCapabilityInvalid deliberately covers missing, malformed, wrong,
+// revoked, and unknown-session capability checks. Callers must not use it to
+// distinguish whether a session ID exists.
+var ErrSessionCapabilityInvalid = errors.New("isolated session capability is invalid")

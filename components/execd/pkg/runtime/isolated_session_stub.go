@@ -66,6 +66,30 @@ func (r *IsolatedRunner) CreateIsolatedSession(_ *IsolatedSessionOptions) (strin
 	return "", ErrContextNotFound
 }
 
+// CreateIsolatedSessionWithCapability returns an error on Windows.
+func (r *IsolatedRunner) CreateIsolatedSessionWithCapability(
+	_ *IsolatedSessionOptions,
+) (string, string, error) {
+	return "", "", ErrContextNotFound
+}
+
+// AcquireSessionOperation returns an error on Windows.
+func (r *IsolatedRunner) AcquireSessionOperation(_, _ string) (func(), error) {
+	return nil, ErrContextNotFound
+}
+
+// ValidateSessionCapability returns an error on Windows.
+func (r *IsolatedRunner) ValidateSessionCapability(_, _ string) error {
+	return ErrContextNotFound
+}
+
+// BeginDeleteIsolatedSession returns an error on Windows.
+func (r *IsolatedRunner) BeginDeleteIsolatedSession(
+	_, _ string,
+) (func() error, error) {
+	return nil, ErrContextNotFound
+}
+
 // GetIsolatedSession returns an error on Windows.
 func (r *IsolatedRunner) GetIsolatedSession(_ string) (*IsolatedSessionState, error) {
 	return nil, ErrContextNotFound

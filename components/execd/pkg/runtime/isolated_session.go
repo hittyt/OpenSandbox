@@ -18,6 +18,7 @@ package runtime
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -49,8 +50,17 @@ type IsolatedSessionOptions struct {
 // isolatedSession holds a long-running shell process inside a bwrap namespace.
 type isolatedSession struct {
 	id                   string
+	capabilityDigest     [sha256.Size]byte
 	mu                   sync.RWMutex
 	runMu                sync.Mutex // serializes concurrent Run calls
+	operationMu          sync.Mutex
+	operationCount       int
+	operationOpen        bool
+	operationDrained     chan struct{}
+	operationDone        sync.Once
+	deleteMu             sync.Mutex
+	deleteComplete       bool
+	deleteErr            error
 	opts                 *IsolatedSessionOptions
 	cmd                  *exec.Cmd
 	stdin                io.WriteCloser
@@ -79,15 +89,36 @@ var (
 	}
 )
 
-func newIsolatedSession(id string, opts *IsolatedSessionOptions, iso isolation.Isolator) *isolatedSession {
+func newIsolatedSession(
+	id string,
+	opts *IsolatedSessionOptions,
+	iso isolation.Isolator,
+) *isolatedSession {
+	return newIsolatedSessionWithCapabilityDigest(
+		id,
+		[sha256.Size]byte{},
+		opts,
+		iso,
+	)
+}
+
+func newIsolatedSessionWithCapabilityDigest(
+	id string,
+	capabilityDigest [sha256.Size]byte,
+	opts *IsolatedSessionOptions,
+	iso isolation.Isolator,
+) *isolatedSession {
 	return &isolatedSession{
-		id:            id,
-		opts:          opts,
-		isolator:      iso,
-		processWaited: make(chan struct{}),
-		doneCh:        make(chan struct{}),
-		createdAt:     time.Now(),
-		lastRunAt:     time.Now(),
+		id:               id,
+		capabilityDigest: capabilityDigest,
+		opts:             opts,
+		isolator:         iso,
+		processWaited:    make(chan struct{}),
+		doneCh:           make(chan struct{}),
+		operationOpen:    true,
+		operationDrained: make(chan struct{}),
+		createdAt:        time.Now(),
+		lastRunAt:        time.Now(),
 	}
 }
 

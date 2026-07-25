@@ -237,21 +237,11 @@ func TestIsolatedRunnerCloseWaitsForAdmittedCreate(t *testing.T) {
 func TestIsolatedRunnerCloseStartsAllSessionTeardownsConcurrently(t *testing.T) {
 	runner := newShutdownTestRunner(t, &shutdownTestIsolator{})
 
-	originalKill := killSessionProcessGroup
-	t.Cleanup(func() {
-		killSessionProcessGroup = originalKill
-	})
-
 	const sessionCount = 6
-	killStarted := make(chan int, sessionCount)
-	killSessionProcessGroup = func(pid int) error {
-		killStarted <- pid
-		return nil
-	}
-
 	sessions := make([]*isolatedSession, 0, sessionCount)
+	releases := make([]func(), 0, sessionCount)
 	for i := range sessionCount {
-		id := fmt.Sprintf("stuck-session-%d", i)
+		id := fmt.Sprintf("leased-session-%d", i)
 		session := newIsolatedSession(
 			id,
 			&IsolatedSessionOptions{
@@ -260,48 +250,66 @@ func TestIsolatedRunnerCloseStartsAllSessionTeardownsConcurrently(t *testing.T) 
 			},
 			&shutdownTestIsolator{},
 		)
-		session.cmd = &exec.Cmd{Process: &os.Process{Pid: 5000 + i}}
+		session.operationMu.Lock()
+		session.operationCount = 1
+		session.operationMu.Unlock()
 		runner.ctrl.isolatedSessionMap.Store(id, session)
 		sessions = append(sessions, session)
-	}
-	var releaseOnce sync.Once
-	releaseAll := func() {
-		releaseOnce.Do(func() {
-			for _, session := range sessions {
-				close(session.doneCh)
-			}
+
+		var releaseOnce sync.Once
+		releases = append(releases, func() {
+			releaseOnce.Do(func() {
+				session.operationMu.Lock()
+				session.operationCount--
+				if !session.operationOpen && session.operationCount == 0 {
+					session.operationDone.Do(func() {
+						close(session.operationDrained)
+					})
+				}
+				session.operationMu.Unlock()
+			})
 		})
 	}
-	defer releaseAll()
+	t.Cleanup(func() {
+		for _, release := range releases {
+			release()
+		}
+	})
 
 	closeDone := make(chan error, 1)
 	go func() {
 		closeDone <- runner.Close()
 	}()
 
-	seen := make(map[int]struct{}, sessionCount)
-	deadline := time.After(time.Second)
-	for len(seen) < sessionCount {
-		select {
-		case pid := <-killStarted:
-			seen[pid] = struct{}{}
-		case <-deadline:
-			t.Fatalf(
-				"Close serialized per-session stop waits: started=%d want=%d",
-				len(seen),
-				sessionCount,
-			)
+	deadline := time.Now().Add(time.Second)
+	for {
+		allStarted := true
+		for _, session := range sessions {
+			if session.deleteMu.TryLock() {
+				session.deleteMu.Unlock()
+				allStarted = false
+				break
+			}
 		}
+		if allStarted {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("Close serialized per-session drain waits")
+		}
+		time.Sleep(time.Millisecond)
 	}
 
-	releaseAll()
+	for _, release := range releases {
+		release()
+	}
 	select {
 	case err := <-closeDone:
 		if err != nil {
-			t.Fatalf("Close after concurrent teardown: %v", err)
+			t.Fatalf("Close after concurrent drains: %v", err)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("Close did not finish after every process completed")
+		t.Fatal("Close did not finish after every operation released")
 	}
 }
 

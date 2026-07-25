@@ -19,6 +19,10 @@ package runtime
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -39,6 +43,13 @@ import (
 )
 
 const isolatedRunEndMarkerPrefix = "__ISOLATED_RUN_END__"
+
+const sessionCapabilityBytes = 32
+
+var (
+	readSessionCapabilityRandom          = rand.Read
+	isolatedSessionOperationDrainTimeout = 5 * time.Second
+)
 
 // IsolatedRunner is the concrete isolated session runner.
 type IsolatedRunner struct {
@@ -190,30 +201,56 @@ func (r *IsolatedRunner) Close() error {
 	r.closeMu.Lock()
 	defer r.closeMu.Unlock()
 
-	var sessionIDs []string
+	type closeTarget struct {
+		id      string
+		session *isolatedSession
+	}
+	var targets []closeTarget
 	r.ctrl.isolatedSessionMap.Range(func(key, _ any) bool {
 		id, ok := key.(string)
 		if !ok {
 			r.ctrl.isolatedSessionMap.Delete(key)
 			return true
 		}
-		sessionIDs = append(sessionIDs, id)
+		value, loaded := r.ctrl.isolatedSessionMap.Load(id)
+		if !loaded {
+			return true
+		}
+		session, ok := value.(*isolatedSession)
+		if !ok {
+			r.ctrl.isolatedSessionMap.CompareAndDelete(id, value)
+			return true
+		}
+		targets = append(targets, closeTarget{id: id, session: session})
 		return true
 	})
 
-	// Teardown attempts run concurrently so one unreapable workload cannot
-	// multiply the bounded per-session stop timeout by the session count.
-	cleanupErrs := make(chan error, len(sessionIDs))
+	// Revoke every session before waiting for any of them. Teardown is then
+	// attempted concurrently so one stuck operation or unreapable workload
+	// cannot multiply the bounded per-session timeout by the session count.
+	for _, target := range targets {
+		target.session.operationMu.Lock()
+		target.session.revokeOperationsLocked()
+		target.session.operationMu.Unlock()
+	}
+
+	cleanupErrs := make(chan error, len(targets))
 	var cleanupWG sync.WaitGroup
-	for _, id := range sessionIDs {
+	for _, target := range targets {
 		cleanupWG.Add(1)
-		go func(id string) {
+		go func(target closeTarget) {
 			defer cleanupWG.Done()
-			if err := r.DeleteIsolatedSession(id); err != nil &&
-				!errors.Is(err, ErrContextNotFound) {
-				cleanupErrs <- fmt.Errorf("delete session %s: %w", id, err)
+			if err := r.deleteIsolatedSession(
+				target.id,
+				target.session,
+			); err != nil && !errors.Is(err, ErrContextNotFound) {
+				cleanupErrs <- fmt.Errorf(
+					"delete session %s: %w",
+					target.id,
+					err,
+				)
 			}
-		}(id)
+		}(target)
 	}
 	cleanupWG.Wait()
 	close(cleanupErrs)
@@ -249,25 +286,35 @@ func (r *IsolatedRunner) Available() bool {
 	return !closing && r.isolator.Available()
 }
 
-// CreateIsolatedSession starts a new bwrap + shell session.
+// CreateIsolatedSession starts a new bwrap + shell session. Callers that need
+// to authorize later HTTP access must use CreateIsolatedSessionWithCapability.
 func (r *IsolatedRunner) CreateIsolatedSession(opts *IsolatedSessionOptions) (string, error) {
+	id, _, err := r.CreateIsolatedSessionWithCapability(opts)
+	return id, err
+}
+
+// CreateIsolatedSessionWithCapability starts a new bwrap + shell session and
+// returns a one-time, 256-bit capability. Only its SHA-256 digest is retained.
+func (r *IsolatedRunner) CreateIsolatedSessionWithCapability(
+	opts *IsolatedSessionOptions,
+) (string, string, error) {
 	if err := r.beginCreate(); err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer r.createWG.Done()
 
 	if err := r.validateExtraWritable(opts.ExtraWritable); err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if err := r.validateBinds(opts.Binds); err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	// Validate uid mode before normalization to keep the validator's handling
 	// of the empty/default mode self-contained.
 	if err := r.validateUidModeAvailable(opts); err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	// Normalize empty/omitted fields to the effective config execd will
@@ -281,18 +328,28 @@ func (r *IsolatedRunner) CreateIsolatedSession(opts *IsolatedSessionOptions) (st
 	// behavior.
 	normalizeIsolatedOptions(opts)
 
+	capability, capabilityDigest, err := generateSessionCapability()
+	if err != nil {
+		return "", "", err
+	}
+
 	if err := os.MkdirAll(opts.WorkspacePath, 0o755); err != nil {
-		return "", fmt.Errorf("create workspace: %w", err)
+		return "", "", fmt.Errorf("create workspace: %w", err)
 	}
 
 	id := uuid.New().String()
-	session := newIsolatedSession(id, opts, r.isolator)
+	session := newIsolatedSessionWithCapabilityDigest(
+		id,
+		capabilityDigest,
+		opts,
+		r.isolator,
+	)
 
 	// Allocate upper directory for overlay mode.
 	if opts.WorkspaceMode == string(isolation.WorkspaceOverlay) || opts.WorkspaceMode == "" {
 		upperID, upperDir, workDir, err := r.upperMgr.Allocate()
 		if err != nil {
-			return "", fmt.Errorf("allocate upper: %w", err)
+			return "", "", fmt.Errorf("allocate upper: %w", err)
 		}
 		session.upperID = upperID
 		session.upperDir = upperDir
@@ -303,18 +360,140 @@ func (r *IsolatedRunner) CreateIsolatedSession(opts *IsolatedSessionOptions) (st
 		startErr := fmt.Errorf("start bwrap: %w", err)
 		if session.upperID != "" {
 			if cleanupErr := r.upperMgr.Remove(session.upperID); cleanupErr != nil {
-				return "", errors.Join(
+				return "", "", errors.Join(
 					startErr,
 					fmt.Errorf("remove failed session upper: %w", cleanupErr),
 				)
 			}
 		}
-		return "", startErr
+		return "", "", startErr
 	}
 
 	r.ctrl.isolatedSessionMap.Store(id, session)
 	log.Info("created isolated session %s (profile=%s, mode=%s)", id, opts.Profile, opts.WorkspaceMode)
-	return id, nil
+	return id, capability, nil
+}
+
+func generateSessionCapability() (string, [sha256.Size]byte, error) {
+	var secret [sessionCapabilityBytes]byte
+	n, err := readSessionCapabilityRandom(secret[:])
+	if err != nil {
+		return "", [sha256.Size]byte{}, fmt.Errorf(
+			"generate session capability: %w",
+			err,
+		)
+	}
+	if n != len(secret) {
+		return "", [sha256.Size]byte{}, fmt.Errorf(
+			"generate session capability: short random read: got %d bytes, want %d",
+			n,
+			len(secret),
+		)
+	}
+	capability := base64.RawURLEncoding.EncodeToString(secret[:])
+	return capability, sha256.Sum256([]byte(capability)), nil
+}
+
+// AcquireSessionOperation validates an opaque capability and acquires a
+// per-session operation lease in the same critical section. Deletion can
+// therefore revoke admission without racing a validated request.
+func (r *IsolatedRunner) AcquireSessionOperation(
+	id string,
+	capability string,
+) (func(), error) {
+	providedDigest := sha256.Sum256([]byte(capability))
+	wireFormatValid := validSessionCapabilityWireFormat(capability)
+
+	var expectedDigest [sha256.Size]byte
+	s := r.lookup(id)
+	if s != nil {
+		s.operationMu.Lock()
+		expectedDigest = s.capabilityDigest
+	}
+	digestMatches := subtle.ConstantTimeCompare(
+		providedDigest[:],
+		expectedDigest[:],
+	)
+	if s == nil {
+		return nil, ErrSessionCapabilityInvalid
+	}
+	if !wireFormatValid || digestMatches != 1 || !s.operationOpen {
+		s.operationMu.Unlock()
+		return nil, ErrSessionCapabilityInvalid
+	}
+	s.operationCount++
+	s.operationMu.Unlock()
+
+	var releaseOnce sync.Once
+	return func() {
+		releaseOnce.Do(func() {
+			s.operationMu.Lock()
+			s.operationCount--
+			if !s.operationOpen && s.operationCount == 0 {
+				s.operationDone.Do(func() {
+					close(s.operationDrained)
+				})
+			}
+			s.operationMu.Unlock()
+		})
+	}, nil
+}
+
+// ValidateSessionCapability validates a capability without retaining an
+// operation lease. HTTP routes must use AcquireSessionOperation instead.
+func (r *IsolatedRunner) ValidateSessionCapability(id, capability string) error {
+	release, err := r.AcquireSessionOperation(id, capability)
+	if err != nil {
+		return err
+	}
+	release()
+	return nil
+}
+
+// BeginDeleteIsolatedSession validates the capability and atomically revokes
+// new operations. The returned closure remains authorized if an internal
+// cleanup races the HTTP handler.
+func (r *IsolatedRunner) BeginDeleteIsolatedSession(
+	id string,
+	capability string,
+) (func() error, error) {
+	providedDigest := sha256.Sum256([]byte(capability))
+	wireFormatValid := validSessionCapabilityWireFormat(capability)
+
+	var expectedDigest [sha256.Size]byte
+	s := r.lookup(id)
+	if s != nil {
+		s.operationMu.Lock()
+		expectedDigest = s.capabilityDigest
+	}
+	digestMatches := subtle.ConstantTimeCompare(
+		providedDigest[:],
+		expectedDigest[:],
+	)
+	if s == nil {
+		return nil, ErrSessionCapabilityInvalid
+	}
+	if !wireFormatValid || digestMatches != 1 || !s.operationOpen {
+		s.operationMu.Unlock()
+		return nil, ErrSessionCapabilityInvalid
+	}
+	s.revokeOperationsLocked()
+	s.operationMu.Unlock()
+
+	return func() error {
+		return r.deleteIsolatedSession(id, s)
+	}, nil
+}
+
+func validSessionCapabilityWireFormat(capability string) bool {
+	if len(capability) != 43 {
+		return false
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(capability)
+	if err != nil || len(decoded) != sessionCapabilityBytes {
+		return false
+	}
+	return base64.RawURLEncoding.EncodeToString(decoded) == capability
 }
 
 // GetIsolatedSession returns session state.
@@ -580,22 +759,64 @@ func scanUntilMarker(ctx context.Context, stdout io.ReadCloser, runMarker string
 
 // DeleteIsolatedSession destroys the session.
 func (r *IsolatedRunner) DeleteIsolatedSession(id string) error {
-	s := r.lookup(id)
-	if s == nil {
+	value, loaded := r.ctrl.isolatedSessionMap.Load(id)
+	if !loaded {
+		return ErrContextNotFound
+	}
+	s, ok := value.(*isolatedSession)
+	if !ok {
+		r.ctrl.isolatedSessionMap.CompareAndDelete(id, value)
 		return ErrContextNotFound
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.operationMu.Lock()
+	s.revokeOperationsLocked()
+	s.operationMu.Unlock()
+	return r.deleteIsolatedSession(id, s)
+}
 
-	// A concurrent delete may have completed while this caller waited for the
-	// session lock. Do not stop or remove the same resources twice.
-	if current := r.lookup(id); current != s {
-		return ErrContextNotFound
+// revokeOperationsLocked closes operation admission and publishes the drain
+// signal once the final already-admitted operation releases.
+func (s *isolatedSession) revokeOperationsLocked() {
+	s.operationOpen = false
+	if s.operationCount == 0 {
+		s.operationDone.Do(func() {
+			close(s.operationDrained)
+		})
+	}
+}
+
+func (r *IsolatedRunner) deleteIsolatedSession(
+	id string,
+	s *isolatedSession,
+) error {
+	// Operation releases must be able to proceed while teardown attempts are
+	// serialized, so deleteMu is intentionally independent from operationMu.
+	s.deleteMu.Lock()
+	defer s.deleteMu.Unlock()
+	if s.deleteComplete {
+		return s.deleteErr
+	}
+
+	s.operationMu.Lock()
+	s.revokeOperationsLocked()
+	drained := s.operationDrained
+	s.operationMu.Unlock()
+
+	timer := time.NewTimer(isolatedSessionOperationDrainTimeout)
+	defer timer.Stop()
+	select {
+	case <-drained:
+	case <-timer.C:
+		// Keep the revoked session registered. A later GC or Close call can
+		// retry after the admitted handler releases its operation lease.
+		return ErrSessionTeardownTimeout
 	}
 
 	var cleanupErr error
-	if stopErr := s.stop(); stopErr != nil {
+	s.mu.Lock()
+	stopErr := s.stop()
+	if stopErr != nil {
 		log.Warn("stop isolated session %s: %v", id, stopErr)
 		cleanupErr = errors.Join(
 			cleanupErr,
@@ -604,6 +825,7 @@ func (r *IsolatedRunner) DeleteIsolatedSession(id string) error {
 		// The process may still be using the overlay. Keep both the map entry
 		// and upper allocation intact so a later Delete or Close can retry.
 		if errors.Is(stopErr, ErrSessionTeardownTimeout) {
+			s.mu.Unlock()
 			return cleanupErr
 		}
 	}
@@ -617,8 +839,11 @@ func (r *IsolatedRunner) DeleteIsolatedSession(id string) error {
 			)
 		}
 	}
+	s.mu.Unlock()
 
 	r.ctrl.isolatedSessionMap.CompareAndDelete(id, s)
+	s.deleteComplete = true
+	s.deleteErr = cleanupErr
 	if cleanupErr != nil {
 		return cleanupErr
 	}
