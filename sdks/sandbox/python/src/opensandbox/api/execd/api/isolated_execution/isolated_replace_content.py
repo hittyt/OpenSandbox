@@ -34,8 +34,11 @@ def _get_kwargs(
     *,
     body: IsolatedReplaceContentBody,
     verbose: bool | Unset = UNSET,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
+    if not isinstance(x_open_sandbox_session_capability, Unset):
+        headers["X-OpenSandbox-Session-Capability"] = x_open_sandbox_session_capability
 
     params: dict[str, Any] = {}
 
@@ -67,6 +70,11 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 403:
+        response_403 = ErrorResponse.from_dict(response.json())
+
+        return response_403
+
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
 
@@ -95,12 +103,14 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     body: IsolatedReplaceContentBody,
     verbose: bool | Unset = UNSET,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Response[ErrorResponse | IsolatedReplaceContentResponse200]:
     """Replace file content
 
     Args:
         session_id (UUID):
         verbose (bool | Unset):
+        x_open_sandbox_session_capability (str | Unset):
         body (IsolatedReplaceContentBody):
 
     Raises:
@@ -115,6 +125,7 @@ def sync_detailed(
         session_id=session_id,
         body=body,
         verbose=verbose,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     )
 
     response = client.get_httpx_client().request(
@@ -130,12 +141,14 @@ def sync(
     client: AuthenticatedClient | Client,
     body: IsolatedReplaceContentBody,
     verbose: bool | Unset = UNSET,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> ErrorResponse | IsolatedReplaceContentResponse200 | None:
     """Replace file content
 
     Args:
         session_id (UUID):
         verbose (bool | Unset):
+        x_open_sandbox_session_capability (str | Unset):
         body (IsolatedReplaceContentBody):
 
     Raises:
@@ -151,6 +164,7 @@ def sync(
         client=client,
         body=body,
         verbose=verbose,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     ).parsed
 
 
@@ -160,12 +174,14 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     body: IsolatedReplaceContentBody,
     verbose: bool | Unset = UNSET,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Response[ErrorResponse | IsolatedReplaceContentResponse200]:
     """Replace file content
 
     Args:
         session_id (UUID):
         verbose (bool | Unset):
+        x_open_sandbox_session_capability (str | Unset):
         body (IsolatedReplaceContentBody):
 
     Raises:
@@ -180,6 +196,7 @@ async def asyncio_detailed(
         session_id=session_id,
         body=body,
         verbose=verbose,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -193,12 +210,14 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     body: IsolatedReplaceContentBody,
     verbose: bool | Unset = UNSET,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> ErrorResponse | IsolatedReplaceContentResponse200 | None:
     """Replace file content
 
     Args:
         session_id (UUID):
         verbose (bool | Unset):
+        x_open_sandbox_session_capability (str | Unset):
         body (IsolatedReplaceContentBody):
 
     Raises:
@@ -215,5 +234,6 @@ async def asyncio(
             client=client,
             body=body,
             verbose=verbose,
+            x_open_sandbox_session_capability=x_open_sandbox_session_capability,
         )
     ).parsed

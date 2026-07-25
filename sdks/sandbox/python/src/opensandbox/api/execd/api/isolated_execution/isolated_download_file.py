@@ -35,10 +35,14 @@ def _get_kwargs(
     offset: int | Unset = UNSET,
     limit: int | Unset = UNSET,
     range_: str | Unset = UNSET,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(range_, Unset):
         headers["Range"] = range_
+
+    if not isinstance(x_open_sandbox_session_capability, Unset):
+        headers["X-OpenSandbox-Session-Capability"] = x_open_sandbox_session_capability
 
     params: dict[str, Any] = {}
 
@@ -72,6 +76,11 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         response_206 = File(payload=BytesIO(response.content))
 
         return response_206
+
+    if response.status_code == 403:
+        response_403 = ErrorResponse.from_dict(response.json())
+
+        return response_403
 
     if response.status_code == 404:
         response_404 = ErrorResponse.from_dict(response.json())
@@ -108,6 +117,7 @@ def sync_detailed(
     offset: int | Unset = UNSET,
     limit: int | Unset = UNSET,
     range_: str | Unset = UNSET,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Response[ErrorResponse | File]:
     """Download a file
 
@@ -117,6 +127,7 @@ def sync_detailed(
         offset (int | Unset):
         limit (int | Unset):
         range_ (str | Unset):
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -132,6 +143,7 @@ def sync_detailed(
         offset=offset,
         limit=limit,
         range_=range_,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     )
 
     response = client.get_httpx_client().request(
@@ -149,6 +161,7 @@ def sync(
     offset: int | Unset = UNSET,
     limit: int | Unset = UNSET,
     range_: str | Unset = UNSET,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> ErrorResponse | File | None:
     """Download a file
 
@@ -158,6 +171,7 @@ def sync(
         offset (int | Unset):
         limit (int | Unset):
         range_ (str | Unset):
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -174,6 +188,7 @@ def sync(
         offset=offset,
         limit=limit,
         range_=range_,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     ).parsed
 
 
@@ -185,6 +200,7 @@ async def asyncio_detailed(
     offset: int | Unset = UNSET,
     limit: int | Unset = UNSET,
     range_: str | Unset = UNSET,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Response[ErrorResponse | File]:
     """Download a file
 
@@ -194,6 +210,7 @@ async def asyncio_detailed(
         offset (int | Unset):
         limit (int | Unset):
         range_ (str | Unset):
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -209,6 +226,7 @@ async def asyncio_detailed(
         offset=offset,
         limit=limit,
         range_=range_,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -224,6 +242,7 @@ async def asyncio(
     offset: int | Unset = UNSET,
     limit: int | Unset = UNSET,
     range_: str | Unset = UNSET,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> ErrorResponse | File | None:
     """Download a file
 
@@ -233,6 +252,7 @@ async def asyncio(
         offset (int | Unset):
         limit (int | Unset):
         range_ (str | Unset):
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -250,5 +270,6 @@ async def asyncio(
             offset=offset,
             limit=limit,
             range_=range_,
+            x_open_sandbox_session_capability=x_open_sandbox_session_capability,
         )
     ).parsed

@@ -303,6 +303,38 @@ def add_license_headers(root: Path) -> None:
     )
 
 
+def redact_execd_sensitive_model_fields() -> None:
+    """Prevent generated sensitive fields from leaking through attrs repr."""
+    model_path = Path(
+        "src/opensandbox/api/execd/models/isolated_create_session_response.py"
+    )
+    generated_marker = "    capability: str | Unset = UNSET\n"
+    redacted_marker = (
+        "    capability: str | Unset = _attrs_field(default=UNSET, repr=False)\n"
+    )
+
+    content = model_path.read_text(encoding="utf-8")
+    generated_count = content.count(generated_marker)
+    redacted_count = content.count(redacted_marker)
+
+    if generated_count == 1 and redacted_count == 0:
+        model_path.write_text(
+            content.replace(generated_marker, redacted_marker),
+            encoding="utf-8",
+        )
+        print(f"✅ Disabled repr for sensitive capability field in {model_path}")
+        return
+
+    if generated_count == 0 and redacted_count == 1:
+        print(f"✅ Sensitive capability field already redacted in {model_path}")
+        return
+
+    raise RuntimeError(
+        "unexpected generated capability field shape in "
+        f"{model_path}: generated_marker={generated_count}, "
+        f"redacted_marker={redacted_count}"
+    )
+
 
 def post_process_generated_code() -> None:
     """Post-process the generated code to ensure proper package structure."""
@@ -317,6 +349,10 @@ def post_process_generated_code() -> None:
                 '"""OpenSandbox API clients generated from OpenAPI specs."""\n'
             )
             print(f"✅ Created {init_file}")
+
+    # Sensitive OpenAPI response fields must not appear in implicit attrs reprs.
+    # Keep this marker replacement strict so generator drift fails closed.
+    redact_execd_sensitive_model_fields()
 
     # Ensure all generated python files have a license header.
     add_license_headers(Path("src/opensandbox/api/execd"))

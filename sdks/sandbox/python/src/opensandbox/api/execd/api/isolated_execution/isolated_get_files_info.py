@@ -25,14 +25,19 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...models.isolated_get_files_info_response_200 import IsolatedGetFilesInfoResponse200
-from ...types import UNSET, Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     session_id: UUID,
     *,
     path: list[str],
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> dict[str, Any]:
+    headers: dict[str, Any] = {}
+    if not isinstance(x_open_sandbox_session_capability, Unset):
+        headers["X-OpenSandbox-Session-Capability"] = x_open_sandbox_session_capability
+
     params: dict[str, Any] = {}
 
     json_path = path
@@ -49,6 +54,7 @@ def _get_kwargs(
         "params": params,
     }
 
+    _kwargs["headers"] = headers
     return _kwargs
 
 
@@ -59,6 +65,11 @@ def _parse_response(
         response_200 = IsolatedGetFilesInfoResponse200.from_dict(response.json())
 
         return response_200
+
+    if response.status_code == 403:
+        response_403 = ErrorResponse.from_dict(response.json())
+
+        return response_403
 
     if response.status_code == 404:
         response_404 = ErrorResponse.from_dict(response.json())
@@ -92,12 +103,14 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     path: list[str],
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Response[ErrorResponse | IsolatedGetFilesInfoResponse200]:
     """Get file information
 
     Args:
         session_id (UUID):
         path (list[str]):
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -110,6 +123,7 @@ def sync_detailed(
     kwargs = _get_kwargs(
         session_id=session_id,
         path=path,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     )
 
     response = client.get_httpx_client().request(
@@ -124,12 +138,14 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     path: list[str],
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> ErrorResponse | IsolatedGetFilesInfoResponse200 | None:
     """Get file information
 
     Args:
         session_id (UUID):
         path (list[str]):
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -143,6 +159,7 @@ def sync(
         session_id=session_id,
         client=client,
         path=path,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     ).parsed
 
 
@@ -151,12 +168,14 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     path: list[str],
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Response[ErrorResponse | IsolatedGetFilesInfoResponse200]:
     """Get file information
 
     Args:
         session_id (UUID):
         path (list[str]):
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -169,6 +188,7 @@ async def asyncio_detailed(
     kwargs = _get_kwargs(
         session_id=session_id,
         path=path,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -181,12 +201,14 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     path: list[str],
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> ErrorResponse | IsolatedGetFilesInfoResponse200 | None:
     """Get file information
 
     Args:
         session_id (UUID):
         path (list[str]):
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -201,5 +223,6 @@ async def asyncio(
             session_id=session_id,
             client=client,
             path=path,
+            x_open_sandbox_session_capability=x_open_sandbox_session_capability,
         )
     ).parsed

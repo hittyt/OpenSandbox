@@ -18,6 +18,7 @@
 
 from .bind_mount import BindMount
 from .capabilities_response import CapabilitiesResponse
+from .capabilities_response_session_auth_mode import CapabilitiesResponseSessionAuthMode
 from .chmod_files_body import ChmodFilesBody
 from .code_context import CodeContext
 from .code_context_request import CodeContextRequest
@@ -73,6 +74,7 @@ from .upload_file_body import UploadFileBody
 __all__ = (
     "BindMount",
     "CapabilitiesResponse",
+    "CapabilitiesResponseSessionAuthMode",
     "ChmodFilesBody",
     "CodeContext",
     "CodeContextRequest",

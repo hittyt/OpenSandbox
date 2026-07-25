@@ -33,7 +33,12 @@ def _get_kwargs(
     *,
     path: str,
     depth: int | Unset = 1,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> dict[str, Any]:
+    headers: dict[str, Any] = {}
+    if not isinstance(x_open_sandbox_session_capability, Unset):
+        headers["X-OpenSandbox-Session-Capability"] = x_open_sandbox_session_capability
+
     params: dict[str, Any] = {}
 
     params["path"] = path
@@ -50,6 +55,7 @@ def _get_kwargs(
         "params": params,
     }
 
+    _kwargs["headers"] = headers
     return _kwargs
 
 
@@ -70,6 +76,11 @@ def _parse_response(
         response_400 = ErrorResponse.from_dict(response.json())
 
         return response_400
+
+    if response.status_code == 403:
+        response_403 = ErrorResponse.from_dict(response.json())
+
+        return response_403
 
     if response.status_code == 404:
         response_404 = ErrorResponse.from_dict(response.json())
@@ -104,6 +115,7 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     path: str,
     depth: int | Unset = 1,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Response[ErrorResponse | list[FileInfo]]:
     """List directory contents
 
@@ -111,6 +123,7 @@ def sync_detailed(
         session_id (UUID):
         path (str):
         depth (int | Unset):  Default: 1.
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -124,6 +137,7 @@ def sync_detailed(
         session_id=session_id,
         path=path,
         depth=depth,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     )
 
     response = client.get_httpx_client().request(
@@ -139,6 +153,7 @@ def sync(
     client: AuthenticatedClient | Client,
     path: str,
     depth: int | Unset = 1,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> ErrorResponse | list[FileInfo] | None:
     """List directory contents
 
@@ -146,6 +161,7 @@ def sync(
         session_id (UUID):
         path (str):
         depth (int | Unset):  Default: 1.
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -160,6 +176,7 @@ def sync(
         client=client,
         path=path,
         depth=depth,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     ).parsed
 
 
@@ -169,6 +186,7 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     path: str,
     depth: int | Unset = 1,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Response[ErrorResponse | list[FileInfo]]:
     """List directory contents
 
@@ -176,6 +194,7 @@ async def asyncio_detailed(
         session_id (UUID):
         path (str):
         depth (int | Unset):  Default: 1.
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -189,6 +208,7 @@ async def asyncio_detailed(
         session_id=session_id,
         path=path,
         depth=depth,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -202,6 +222,7 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     path: str,
     depth: int | Unset = 1,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> ErrorResponse | list[FileInfo] | None:
     """List directory contents
 
@@ -209,6 +230,7 @@ async def asyncio(
         session_id (UUID):
         path (str):
         depth (int | Unset):  Default: 1.
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -224,5 +246,6 @@ async def asyncio(
             client=client,
             path=path,
             depth=depth,
+            x_open_sandbox_session_capability=x_open_sandbox_session_capability,
         )
     ).parsed

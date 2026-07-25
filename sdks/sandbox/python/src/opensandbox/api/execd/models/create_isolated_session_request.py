@@ -46,7 +46,10 @@ class CreateIsolatedSessionRequest:
             to-destination mapping. Unlike extra_writable (which mounts source==destination read-write), each entry may map
             a distinct destination path and be mounted read-only. The source path of every entry must fall within the
             configured writable allowlist.
-        share_net (bool | Unset):
+        share_net (bool | Unset): Network namespace selection. In legacy mode, omitted or true shares the sandbox
+            network namespace and false creates a loopback-only network namespace. In capability mode, false must be
+            supplied explicitly. Omitted returns 503 SESSION_NETWORK_BACKEND_UNAVAILABLE and true returns 400
+            SESSION_SHARED_NETWORK_FORBIDDEN; neither failure creates a session.
         env_passthrough (EnvPassthroughSpec | Unset):
         uid (int | Unset):
         gid (int | Unset):

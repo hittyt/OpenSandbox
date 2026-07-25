@@ -22,6 +22,7 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.capabilities_response_session_auth_mode import CapabilitiesResponseSessionAuthMode
 from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="CapabilitiesResponse")
@@ -41,6 +42,11 @@ class CapabilitiesResponse:
         userns_available (bool | Unset): Whether sessions using uid_mode userns can be created
         commit_supported (bool | Unset):
         diff_supported (bool | Unset):
+        session_auth_mode (CapabilitiesResponseSessionAuthMode | Unset): Effective isolated-session authorization mode.
+            Older execd builds may omit this field; clients should treat absence as legacy. Secure capability mode is
+            admitted only when EXECD_ISOLATION_ENABLED is also true and a canonical execd access token is configured.
+        session_capability_required (bool | Unset): True exactly when session_auth_mode is capability. Older execd
+            builds may omit this field; clients should treat absence as false.
     """
 
     available: bool | Unset = UNSET
@@ -51,6 +57,8 @@ class CapabilitiesResponse:
     userns_available: bool | Unset = UNSET
     commit_supported: bool | Unset = UNSET
     diff_supported: bool | Unset = UNSET
+    session_auth_mode: CapabilitiesResponseSessionAuthMode | Unset = UNSET
+    session_capability_required: bool | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -69,6 +77,12 @@ class CapabilitiesResponse:
         commit_supported = self.commit_supported
 
         diff_supported = self.diff_supported
+
+        session_auth_mode: str | Unset = UNSET
+        if not isinstance(self.session_auth_mode, Unset):
+            session_auth_mode = self.session_auth_mode.value
+
+        session_capability_required = self.session_capability_required
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -89,6 +103,10 @@ class CapabilitiesResponse:
             field_dict["commit_supported"] = commit_supported
         if diff_supported is not UNSET:
             field_dict["diff_supported"] = diff_supported
+        if session_auth_mode is not UNSET:
+            field_dict["session_auth_mode"] = session_auth_mode
+        if session_capability_required is not UNSET:
+            field_dict["session_capability_required"] = session_capability_required
 
         return field_dict
 
@@ -111,6 +129,15 @@ class CapabilitiesResponse:
 
         diff_supported = d.pop("diff_supported", UNSET)
 
+        _session_auth_mode = d.pop("session_auth_mode", UNSET)
+        session_auth_mode: CapabilitiesResponseSessionAuthMode | Unset
+        if isinstance(_session_auth_mode, Unset):
+            session_auth_mode = UNSET
+        else:
+            session_auth_mode = CapabilitiesResponseSessionAuthMode(_session_auth_mode)
+
+        session_capability_required = d.pop("session_capability_required", UNSET)
+
         capabilities_response = cls(
             available=available,
             isolator=isolator,
@@ -120,6 +147,8 @@ class CapabilitiesResponse:
             userns_available=userns_available,
             commit_supported=commit_supported,
             diff_supported=diff_supported,
+            session_auth_mode=session_auth_mode,
+            session_capability_required=session_capability_required,
         )
 
         capabilities_response.additional_properties = d

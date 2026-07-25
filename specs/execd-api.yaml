@@ -1115,6 +1115,13 @@ paths:
   /v1/isolated/session:
     post:
       summary: Create an isolated bash session
+      description: >-
+        Creates an isolated session. When session_auth_mode is capability, the
+        response includes a capability exactly once. The caller must retain it
+        and send it on every subsequent session-scoped request. Legacy mode
+        omits the capability for compatibility with existing SDKs. Until the
+        secure per-session network backend is available, capability mode
+        accepts only an explicit share_net=false request.
       operationId: createIsolatedSession
       tags:
         - IsolatedExecution
@@ -1132,13 +1139,51 @@ paths:
               schema:
                 $ref: "#/components/schemas/IsolatedCreateSessionResponse"
         "400":
-          $ref: "#/components/responses/BadRequest"
+          description: >-
+            Invalid create request. In capability mode, share_net=true fails
+            closed with SESSION_SHARED_NETWORK_FORBIDDEN.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidRequest:
+                  value:
+                    code: INVALID_REQUEST_BODY
+                    message: "error parsing request, MAYBE invalid body format"
+                sharedNetworkForbidden:
+                  value:
+                    code: SESSION_SHARED_NETWORK_FORBIDDEN
+                    message: "shared network is forbidden for secure isolated sessions"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
         "503":
-          $ref: "#/components/responses/ServiceUnavailable"
+          description: >-
+            Isolation subsystem or a requested isolation capability is
+            unavailable. In capability mode, an omitted share_net fails closed
+            with SESSION_NETWORK_BACKEND_UNAVAILABLE until the secure default
+            session network backend is implemented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                isolationUnavailable:
+                  value:
+                    code: SERVICE_UNAVAILABLE
+                    message: "isolation unavailable"
+                sessionNetworkBackendUnavailable:
+                  value:
+                    code: SESSION_NETWORK_BACKEND_UNAVAILABLE
+                    message: "secure default session network backend is unavailable"
 
   /v1/isolated/sessions:
     get:
       summary: List isolated sessions
+      description: >-
+        Lists active isolated sessions in legacy auth mode. This unscoped
+        enumeration endpoint is forbidden when session_auth_mode is
+        capability and returns SESSION_LIST_FORBIDDEN.
       operationId: listIsolatedSessions
       tags:
         - IsolatedExecution
@@ -1149,6 +1194,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListIsolatedSessionsResponse"
+        "403":
+          $ref: "#/components/responses/SessionListForbidden"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
@@ -1167,13 +1214,16 @@ paths:
                 $ref: "#/components/schemas/CapabilitiesResponse"
 
   /v1/isolated/session/{sessionId}:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     get:
       summary: Get isolated session state
       description: >-
         Returns runtime status plus the creation parameters of the session.
-        A stateless client that only has a session ID (e.g. after a restart)
-        can call this endpoint to rebuild a session handle without needing
-        to have retained the original create request.
+        In legacy auth mode, a stateless client that only has a session ID
+        can call this endpoint to rebuild a session handle without retaining
+        the original create request. In capability auth mode, the client must
+        also have retained the capability returned by session creation.
       operationId: getIsolatedSession
       tags:
         - IsolatedExecution
@@ -1191,6 +1241,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SessionState"
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "404":
           $ref: "#/components/responses/NotFound"
         "503":
@@ -1210,12 +1262,18 @@ paths:
       responses:
         "200":
           description: Session deleted
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/SessionDeleteError"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/run:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     post:
       summary: Run code in an isolated session (SSE streaming)
       operationId: runInIsolatedSession
@@ -1243,12 +1301,16 @@ paths:
                 $ref: "#/components/schemas/ServerStreamEvent"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "404":
           $ref: "#/components/responses/NotFound"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/diff:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     get:
       summary: Download upper directory diff (stub)
       operationId: isolatedSessionDiff
@@ -1262,10 +1324,14 @@ paths:
             type: string
             format: uuid
       responses:
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/commit:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     post:
       summary: Commit upper changes to workspace (stub)
       operationId: isolatedSessionCommit
@@ -1279,10 +1345,14 @@ paths:
             type: string
             format: uuid
       responses:
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/files/info:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     get:
       summary: Get file information
       operationId: isolatedGetFilesInfo
@@ -1314,12 +1384,16 @@ paths:
                 type: object
                 additionalProperties:
                   $ref: "#/components/schemas/FileInfo"
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "404":
           $ref: "#/components/responses/NotFound"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/files/download:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     get:
       summary: Download a file
       operationId: isolatedDownloadFile
@@ -1376,12 +1450,16 @@ paths:
               schema:
                 type: string
                 format: binary
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "404":
           $ref: "#/components/responses/NotFound"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/files/upload:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     post:
       summary: Upload a file
       operationId: isolatedUploadFile
@@ -1411,10 +1489,14 @@ paths:
       responses:
         "200":
           description: File uploaded
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/files:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     delete:
       summary: Remove files
       operationId: isolatedRemoveFiles
@@ -1440,10 +1522,14 @@ paths:
       responses:
         "200":
           description: Files removed
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/files/mv:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     post:
       summary: Rename or move files
       operationId: isolatedRenameFiles
@@ -1467,10 +1553,14 @@ paths:
       responses:
         "200":
           description: Files renamed
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/files/permissions:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     post:
       summary: Change file permissions
       operationId: isolatedChmodFiles
@@ -1494,10 +1584,14 @@ paths:
       responses:
         "200":
           description: Permissions changed
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/files/replace:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     post:
       summary: Replace file content
       operationId: isolatedReplaceContent
@@ -1533,10 +1627,14 @@ paths:
                 type: object
                 additionalProperties:
                   $ref: "#/components/schemas/ReplaceFileContentResult"
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/files/search:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     get:
       summary: Search files
       operationId: isolatedSearchFiles
@@ -1573,10 +1671,14 @@ paths:
                   $ref: "#/components/schemas/FileInfo"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/directories/list:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     get:
       summary: List directory contents
       operationId: isolatedListDirectory
@@ -1614,12 +1716,16 @@ paths:
                   $ref: "#/components/schemas/FileInfo"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "404":
           $ref: "#/components/responses/NotFound"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/isolated/session/{sessionId}/directories:
+    parameters:
+      - $ref: "#/components/parameters/SessionCapabilityHeader"
     post:
       summary: Create directories
       operationId: isolatedMakeDirs
@@ -1643,6 +1749,8 @@ paths:
       responses:
         "200":
           description: Directories created
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
     delete:
@@ -1670,6 +1778,8 @@ paths:
       responses:
         "200":
           description: Directories removed
+        "403":
+          $ref: "#/components/responses/SessionCapabilityInvalid"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
@@ -1680,8 +1790,28 @@ components:
       in: header
       name: X-EXECD-ACCESS-TOKEN
       description: |
-        Access token for API authentication. All requests must include this header
-        with a valid token. The token is configured during server initialization.
+        Access token for API authentication. When execd has a token configured,
+        all requests must include this header with the exact token. Secure
+        isolated-session admission requires a non-empty token without leading
+        or trailing whitespace.
+
+  parameters:
+    SessionCapabilityHeader:
+      name: X-OpenSandbox-Session-Capability
+      in: header
+      required: false
+      description: >-
+        Isolated-session capability returned exactly once by session creation
+        when session_auth_mode is capability. In that mode, every operation on
+        a path containing sessionId requires exactly one canonical header
+        value. Missing, malformed, duplicated, or cross-session values return
+        403 SESSION_CAPABILITY_INVALID without disclosing whether the session
+        exists. The header is not required in legacy mode.
+      schema:
+        type: string
+        minLength: 43
+        maxLength: 43
+        pattern: "^[A-Za-z0-9_-]{43}$"
 
   schemas:
     CreateSessionRequest:
@@ -2108,6 +2238,14 @@ components:
             $ref: "#/components/schemas/BindMount"
         share_net:
           type: boolean
+          description: >-
+            Network namespace selection. In legacy mode, omitted or true shares
+            the sandbox network namespace and false creates a loopback-only
+            network namespace. In capability mode, false must be supplied
+            explicitly. Omitted returns 503
+            SESSION_NETWORK_BACKEND_UNAVAILABLE and true returns 400
+            SESSION_SHARED_NETWORK_FORBIDDEN; neither failure creates a
+            session.
         env_passthrough:
           $ref: "#/components/schemas/EnvPassthroughSpec"
         uid:
@@ -2177,6 +2315,21 @@ components:
         created_at:
           type: string
           format: date-time
+        capability:
+          type: string
+          readOnly: true
+          x-sensitive: true
+          minLength: 43
+          maxLength: 43
+          pattern: "^[A-Za-z0-9_-]{43}$"
+          description: >-
+            Present only when session_auth_mode is capability and returned
+            exactly once by session creation. execd retains only a digest and
+            never returns this value from get, list, or capabilities. The
+            caller must retain it and send it in
+            X-OpenSandbox-Session-Capability on every later session-scoped
+            request. The field remains optional in the schema for compatibility
+            with legacy and older execd versions.
 
     IsolatedRunRequest:
       type: object
@@ -2201,10 +2354,11 @@ components:
         Creation-parameter fields (profile, workspace, binds, share_net,
         env_passthrough, uid, gid, uid_mode, extra_writable,
         idle_timeout_seconds) echo the parameters used to create the session
-        and let a stateless client rebuild a session handle from just a
-        session ID (e.g. after a client restart or in serverless workers).
-        Older execd builds may omit the creation-parameter fields; clients
-        must tolerate them being absent.
+        and let a stateless client rebuild a session handle. A session ID is
+        sufficient in legacy auth mode; capability auth mode also requires
+        the capability retained from session creation. Older execd builds may
+        omit the creation-parameter fields; clients must tolerate them being
+        absent.
       properties:
         status:
           type: string
@@ -2308,8 +2462,62 @@ components:
           type: boolean
         diff_supported:
           type: boolean
+        session_auth_mode:
+          type: string
+          enum: ["legacy", "capability"]
+          description: >-
+            Effective isolated-session authorization mode. Older execd builds
+            may omit this field; clients should treat absence as legacy. Secure
+            capability mode is admitted only when EXECD_ISOLATION_ENABLED is
+            also true and a canonical execd access token is configured.
+        session_capability_required:
+          type: boolean
+          description: >-
+            True exactly when session_auth_mode is capability. Older execd
+            builds may omit this field; clients should treat absence as false.
 
   responses:
+    SessionCapabilityInvalid:
+      description: Missing or invalid isolated-session capability
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: SESSION_CAPABILITY_INVALID
+            message: "invalid or missing isolated session capability"
+
+    SessionListForbidden:
+      description: Isolated-session enumeration is forbidden in capability mode
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: SESSION_LIST_FORBIDDEN
+            message: "isolated session listing is disabled in capability mode"
+
+    SessionDeleteError:
+      description: >-
+        Isolated-session deletion failed. SESSION_TEARDOWN_TIMEOUT means
+        operation admission has been revoked and cleanup did not complete
+        within its bound; the manager must terminate the sandbox and must not
+        retry DELETE with the same capability. Other failures use
+        RUNTIME_ERROR.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            teardownTimeout:
+              value:
+                code: SESSION_TEARDOWN_TIMEOUT
+                message: "isolated session teardown timed out; terminate the sandbox"
+            runtimeError:
+              value:
+                code: RUNTIME_ERROR
+                message: "failed to delete isolated session"
+
     ServiceUnavailable:
       description: Isolation subsystem is not available
       content:

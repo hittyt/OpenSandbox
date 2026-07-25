@@ -590,7 +590,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create an isolated bash session */
+        /**
+         * Create an isolated bash session
+         * @description Creates an isolated session. When session_auth_mode is capability, the response includes a capability exactly once. The caller must retain it and send it on every subsequent session-scoped request. Legacy mode omits the capability for compatibility with existing SDKs. Until the secure per-session network backend is available, capability mode accepts only an explicit share_net=false request.
+         */
         post: operations["createIsolatedSession"];
         delete?: never;
         options?: never;
@@ -605,7 +608,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List isolated sessions */
+        /**
+         * List isolated sessions
+         * @description Lists active isolated sessions in legacy auth mode. This unscoped enumeration endpoint is forbidden when session_auth_mode is capability and returns SESSION_LIST_FORBIDDEN.
+         */
         get: operations["listIsolatedSessions"];
         put?: never;
         post?: never;
@@ -635,13 +641,16 @@ export interface paths {
     "/v1/isolated/session/{sessionId}": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
         /**
          * Get isolated session state
-         * @description Returns runtime status plus the creation parameters of the session. A stateless client that only has a session ID (e.g. after a restart) can call this endpoint to rebuild a session handle without needing to have retained the original create request.
+         * @description Returns runtime status plus the creation parameters of the session. In legacy auth mode, a stateless client that only has a session ID can call this endpoint to rebuild a session handle without retaining the original create request. In capability auth mode, the client must also have retained the capability returned by session creation.
          */
         get: operations["getIsolatedSession"];
         put?: never;
@@ -656,7 +665,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/run": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -673,7 +685,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/diff": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -690,7 +705,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/commit": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -707,7 +725,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/files/info": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -724,7 +745,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/files/download": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -741,7 +765,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/files/upload": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -758,7 +785,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/files": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -775,7 +805,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/files/mv": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -792,7 +825,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/files/permissions": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -809,7 +845,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/files/replace": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -826,7 +865,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/files/search": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -843,7 +885,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/directories/list": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -860,7 +905,10 @@ export interface paths {
     "/v1/isolated/session/{sessionId}/directories": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1272,6 +1320,7 @@ export interface components {
             extra_writable?: string[];
             /** @description Additional host paths bind-mounted into the namespace with an explicit source-to-destination mapping. Unlike extra_writable (which mounts source==destination read-write), each entry may map a distinct destination path and be mounted read-only. The source path of every entry must fall within the configured writable allowlist. */
             binds?: components["schemas"]["BindMount"][];
+            /** @description Network namespace selection. In legacy mode, omitted or true shares the sandbox network namespace and false creates a loopback-only network namespace. In capability mode, false must be supplied explicitly. Omitted returns 503 SESSION_NETWORK_BACKEND_UNAVAILABLE and true returns 400 SESSION_SHARED_NETWORK_FORBIDDEN; neither failure creates a session. */
             share_net?: boolean;
             env_passthrough?: components["schemas"]["EnvPassthroughSpec"];
             /** Format: uint32 */
@@ -1311,6 +1360,8 @@ export interface components {
             session_id?: string;
             /** Format: date-time */
             created_at?: string;
+            /** @description Present only when session_auth_mode is capability and returned exactly once by session creation. execd retains only a digest and never returns this value from get, list, or capabilities. The caller must retain it and send it in X-OpenSandbox-Session-Capability on every later session-scoped request. The field remains optional in the schema for compatibility with legacy and older execd versions. */
+            readonly capability?: string;
         };
         IsolatedRunRequest: {
             code: string;
@@ -1319,7 +1370,7 @@ export interface components {
             };
             timeout_seconds?: number;
         };
-        /** @description State of an isolated session. Runtime status fields (status, created_at, last_run_at, idle_remaining_seconds) are always present. Creation-parameter fields (profile, workspace, binds, share_net, env_passthrough, uid, gid, uid_mode, extra_writable, idle_timeout_seconds) echo the parameters used to create the session and let a stateless client rebuild a session handle from just a session ID (e.g. after a client restart or in serverless workers). Older execd builds may omit the creation-parameter fields; clients must tolerate them being absent. */
+        /** @description State of an isolated session. Runtime status fields (status, created_at, last_run_at, idle_remaining_seconds) are always present. Creation-parameter fields (profile, workspace, binds, share_net, env_passthrough, uid, gid, uid_mode, extra_writable, idle_timeout_seconds) echo the parameters used to create the session and let a stateless client rebuild a session handle. A session ID is sufficient in legacy auth mode; capability auth mode also requires the capability retained from session creation. Older execd builds may omit the creation-parameter fields; clients must tolerate them being absent. */
         SessionState: {
             /** @enum {string} */
             status?: "active" | "dead" | "destroyed";
@@ -1372,9 +1423,55 @@ export interface components {
             userns_available?: boolean;
             commit_supported?: boolean;
             diff_supported?: boolean;
+            /**
+             * @description Effective isolated-session authorization mode. Older execd builds may omit this field; clients should treat absence as legacy. Secure capability mode is admitted only when EXECD_ISOLATION_ENABLED is also true and a canonical execd access token is configured.
+             * @enum {string}
+             */
+            session_auth_mode?: "legacy" | "capability";
+            /** @description True exactly when session_auth_mode is capability. Older execd builds may omit this field; clients should treat absence as false. */
+            session_capability_required?: boolean;
         };
     };
     responses: {
+        /** @description Missing or invalid isolated-session capability */
+        SessionCapabilityInvalid: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "code": "SESSION_CAPABILITY_INVALID",
+                 *       "message": "invalid or missing isolated session capability"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description Isolated-session enumeration is forbidden in capability mode */
+        SessionListForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "code": "SESSION_LIST_FORBIDDEN",
+                 *       "message": "isolated session listing is disabled in capability mode"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description Isolated-session deletion failed. SESSION_TEARDOWN_TIMEOUT means operation admission has been revoked and cleanup did not complete within its bound; the manager must terminate the sandbox and must not retry DELETE with the same capability. Other failures use RUNTIME_ERROR. */
+        SessionDeleteError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
         /** @description Isolation subsystem is not available */
         ServiceUnavailable: {
             headers: {
@@ -1430,7 +1527,10 @@ export interface components {
             };
         };
     };
-    parameters: never;
+    parameters: {
+        /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+        SessionCapabilityHeader: string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -2369,8 +2469,25 @@ export interface operations {
                     "application/json": components["schemas"]["IsolatedCreateSessionResponse"];
                 };
             };
-            400: components["responses"]["BadRequest"];
-            503: components["responses"]["ServiceUnavailable"];
+            /** @description Invalid create request. In capability mode, share_net=true fails closed with SESSION_SHARED_NETWORK_FORBIDDEN. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            500: components["responses"]["InternalServerError"];
+            /** @description Isolation subsystem or a requested isolation capability is unavailable. In capability mode, an omitted share_net fails closed with SESSION_NETWORK_BACKEND_UNAVAILABLE until the secure default session network backend is implemented. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     listIsolatedSessions: {
@@ -2391,6 +2508,7 @@ export interface operations {
                     "application/json": components["schemas"]["ListIsolatedSessionsResponse"];
                 };
             };
+            403: components["responses"]["SessionListForbidden"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
@@ -2417,7 +2535,10 @@ export interface operations {
     getIsolatedSession: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2434,6 +2555,7 @@ export interface operations {
                     "application/json": components["schemas"]["SessionState"];
                 };
             };
+            403: components["responses"]["SessionCapabilityInvalid"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -2441,7 +2563,10 @@ export interface operations {
     deleteIsolatedSession: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2456,14 +2581,19 @@ export interface operations {
                 };
                 content?: never;
             };
+            403: components["responses"]["SessionCapabilityInvalid"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["SessionDeleteError"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
     runInIsolatedSession: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2485,6 +2615,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            403: components["responses"]["SessionCapabilityInvalid"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -2492,7 +2623,10 @@ export interface operations {
     isolatedSessionDiff: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2500,13 +2634,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            403: components["responses"]["SessionCapabilityInvalid"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
     isolatedSessionCommit: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2514,6 +2652,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            403: components["responses"]["SessionCapabilityInvalid"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
@@ -2523,7 +2662,10 @@ export interface operations {
                 /** @description File path(s) to get info for (can be specified multiple times) */
                 path: string[];
             };
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2542,6 +2684,7 @@ export interface operations {
                     };
                 };
             };
+            403: components["responses"]["SessionCapabilityInvalid"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -2556,6 +2699,8 @@ export interface operations {
                 limit?: number;
             };
             header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
                 /** @description HTTP Range header for partial content requests. Mutually exclusive with offset/limit. */
                 Range?: string;
             };
@@ -2585,6 +2730,7 @@ export interface operations {
                     "application/octet-stream": string;
                 };
             };
+            403: components["responses"]["SessionCapabilityInvalid"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -2592,7 +2738,10 @@ export interface operations {
     isolatedUploadFile: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2619,6 +2768,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            403: components["responses"]["SessionCapabilityInvalid"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
@@ -2628,7 +2778,10 @@ export interface operations {
                 /** @description File path(s) to delete (can be specified multiple times) */
                 path: string[];
             };
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2643,13 +2796,17 @@ export interface operations {
                 };
                 content?: never;
             };
+            403: components["responses"]["SessionCapabilityInvalid"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
     isolatedRenameFiles: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2668,13 +2825,17 @@ export interface operations {
                 };
                 content?: never;
             };
+            403: components["responses"]["SessionCapabilityInvalid"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
     isolatedChmodFiles: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2695,6 +2856,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            403: components["responses"]["SessionCapabilityInvalid"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
@@ -2704,7 +2866,10 @@ export interface operations {
                 /** @description When true, return per-file replacement counts */
                 verbose?: boolean;
             };
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2729,6 +2894,7 @@ export interface operations {
                     };
                 };
             };
+            403: components["responses"]["SessionCapabilityInvalid"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
@@ -2740,7 +2906,10 @@ export interface operations {
                 /** @description Glob pattern to match files (default is **) */
                 pattern?: string;
             };
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2758,6 +2927,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            403: components["responses"]["SessionCapabilityInvalid"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
@@ -2769,7 +2939,10 @@ export interface operations {
                 /** @description Maximum depth to traverse (default 1) */
                 depth?: number;
             };
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2787,6 +2960,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            403: components["responses"]["SessionCapabilityInvalid"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -2794,7 +2968,10 @@ export interface operations {
     isolatedMakeDirs: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2815,6 +2992,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            403: components["responses"]["SessionCapabilityInvalid"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
@@ -2824,7 +3002,10 @@ export interface operations {
                 /** @description Directory path(s) to delete (can be specified multiple times) */
                 path: string[];
             };
-            header?: never;
+            header?: {
+                /** @description Isolated-session capability returned exactly once by session creation when session_auth_mode is capability. In that mode, every operation on a path containing sessionId requires exactly one canonical header value. Missing, malformed, duplicated, or cross-session values return 403 SESSION_CAPABILITY_INVALID without disclosing whether the session exists. The header is not required in legacy mode. */
+                "X-OpenSandbox-Session-Capability"?: components["parameters"]["SessionCapabilityHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -2839,6 +3020,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            403: components["responses"]["SessionCapabilityInvalid"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };

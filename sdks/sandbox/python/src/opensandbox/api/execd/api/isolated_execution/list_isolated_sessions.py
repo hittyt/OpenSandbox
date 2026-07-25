@@ -43,6 +43,11 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 403:
+        response_403 = ErrorResponse.from_dict(response.json())
+
+        return response_403
+
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
 
@@ -71,6 +76,9 @@ def sync_detailed(
 ) -> Response[ErrorResponse | ListIsolatedSessionsResponse]:
     """List isolated sessions
 
+     Lists active isolated sessions in legacy auth mode. This unscoped enumeration endpoint is forbidden
+    when session_auth_mode is capability and returns SESSION_LIST_FORBIDDEN.
+
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
@@ -94,6 +102,9 @@ def sync(
 ) -> ErrorResponse | ListIsolatedSessionsResponse | None:
     """List isolated sessions
 
+     Lists active isolated sessions in legacy auth mode. This unscoped enumeration endpoint is forbidden
+    when session_auth_mode is capability and returns SESSION_LIST_FORBIDDEN.
+
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
@@ -112,6 +123,9 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[ErrorResponse | ListIsolatedSessionsResponse]:
     """List isolated sessions
+
+     Lists active isolated sessions in legacy auth mode. This unscoped enumeration endpoint is forbidden
+    when session_auth_mode is capability and returns SESSION_LIST_FORBIDDEN.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -133,6 +147,9 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> ErrorResponse | ListIsolatedSessionsResponse | None:
     """List isolated sessions
+
+     Lists active isolated sessions in legacy auth mode. This unscoped enumeration endpoint is forbidden
+    when session_auth_mode is capability and returns SESSION_LIST_FORBIDDEN.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

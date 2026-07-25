@@ -59,6 +59,11 @@ def _parse_response(
 
         return response_400
 
+    if response.status_code == 500:
+        response_500 = ErrorResponse.from_dict(response.json())
+
+        return response_500
+
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
 
@@ -87,6 +92,12 @@ def sync_detailed(
     body: CreateIsolatedSessionRequest,
 ) -> Response[ErrorResponse | IsolatedCreateSessionResponse]:
     """Create an isolated bash session
+
+     Creates an isolated session. When session_auth_mode is capability, the response includes a
+    capability exactly once. The caller must retain it and send it on every subsequent session-scoped
+    request. Legacy mode omits the capability for compatibility with existing SDKs. Until the secure
+    per-session network backend is available, capability mode accepts only an explicit share_net=false
+    request.
 
     Args:
         body (CreateIsolatedSessionRequest):
@@ -117,6 +128,12 @@ def sync(
 ) -> ErrorResponse | IsolatedCreateSessionResponse | None:
     """Create an isolated bash session
 
+     Creates an isolated session. When session_auth_mode is capability, the response includes a
+    capability exactly once. The caller must retain it and send it on every subsequent session-scoped
+    request. Legacy mode omits the capability for compatibility with existing SDKs. Until the secure
+    per-session network backend is available, capability mode accepts only an explicit share_net=false
+    request.
+
     Args:
         body (CreateIsolatedSessionRequest):
 
@@ -140,6 +157,12 @@ async def asyncio_detailed(
     body: CreateIsolatedSessionRequest,
 ) -> Response[ErrorResponse | IsolatedCreateSessionResponse]:
     """Create an isolated bash session
+
+     Creates an isolated session. When session_auth_mode is capability, the response includes a
+    capability exactly once. The caller must retain it and send it on every subsequent session-scoped
+    request. Legacy mode omits the capability for compatibility with existing SDKs. Until the secure
+    per-session network backend is available, capability mode accepts only an explicit share_net=false
+    request.
 
     Args:
         body (CreateIsolatedSessionRequest):
@@ -167,6 +190,12 @@ async def asyncio(
     body: CreateIsolatedSessionRequest,
 ) -> ErrorResponse | IsolatedCreateSessionResponse | None:
     """Create an isolated bash session
+
+     Creates an isolated session. When session_auth_mode is capability, the response includes a
+    capability exactly once. The caller must retain it and send it on every subsequent session-scoped
+    request. Legacy mode omits the capability for compatibility with existing SDKs. Until the secure
+    per-session network backend is available, capability mode accepts only an explicit share_net=false
+    request.
 
     Args:
         body (CreateIsolatedSessionRequest):

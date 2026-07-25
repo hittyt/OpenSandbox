@@ -25,12 +25,18 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...models.session_state import SessionState
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     session_id: UUID,
+    *,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> dict[str, Any]:
+    headers: dict[str, Any] = {}
+    if not isinstance(x_open_sandbox_session_capability, Unset):
+        headers["X-OpenSandbox-Session-Capability"] = x_open_sandbox_session_capability
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/v1/isolated/session/{session_id}".format(
@@ -38,6 +44,7 @@ def _get_kwargs(
         ),
     }
 
+    _kwargs["headers"] = headers
     return _kwargs
 
 
@@ -48,6 +55,11 @@ def _parse_response(
         response_200 = SessionState.from_dict(response.json())
 
         return response_200
+
+    if response.status_code == 403:
+        response_403 = ErrorResponse.from_dict(response.json())
+
+        return response_403
 
     if response.status_code == 404:
         response_404 = ErrorResponse.from_dict(response.json())
@@ -80,15 +92,18 @@ def sync_detailed(
     session_id: UUID,
     *,
     client: AuthenticatedClient | Client,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Response[ErrorResponse | SessionState]:
     """Get isolated session state
 
-     Returns runtime status plus the creation parameters of the session. A stateless client that only has
-    a session ID (e.g. after a restart) can call this endpoint to rebuild a session handle without
-    needing to have retained the original create request.
+     Returns runtime status plus the creation parameters of the session. In legacy auth mode, a stateless
+    client that only has a session ID can call this endpoint to rebuild a session handle without
+    retaining the original create request. In capability auth mode, the client must also have retained
+    the capability returned by session creation.
 
     Args:
         session_id (UUID):
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -100,6 +115,7 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         session_id=session_id,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     )
 
     response = client.get_httpx_client().request(
@@ -113,15 +129,18 @@ def sync(
     session_id: UUID,
     *,
     client: AuthenticatedClient | Client,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> ErrorResponse | SessionState | None:
     """Get isolated session state
 
-     Returns runtime status plus the creation parameters of the session. A stateless client that only has
-    a session ID (e.g. after a restart) can call this endpoint to rebuild a session handle without
-    needing to have retained the original create request.
+     Returns runtime status plus the creation parameters of the session. In legacy auth mode, a stateless
+    client that only has a session ID can call this endpoint to rebuild a session handle without
+    retaining the original create request. In capability auth mode, the client must also have retained
+    the capability returned by session creation.
 
     Args:
         session_id (UUID):
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -134,6 +153,7 @@ def sync(
     return sync_detailed(
         session_id=session_id,
         client=client,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     ).parsed
 
 
@@ -141,15 +161,18 @@ async def asyncio_detailed(
     session_id: UUID,
     *,
     client: AuthenticatedClient | Client,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Response[ErrorResponse | SessionState]:
     """Get isolated session state
 
-     Returns runtime status plus the creation parameters of the session. A stateless client that only has
-    a session ID (e.g. after a restart) can call this endpoint to rebuild a session handle without
-    needing to have retained the original create request.
+     Returns runtime status plus the creation parameters of the session. In legacy auth mode, a stateless
+    client that only has a session ID can call this endpoint to rebuild a session handle without
+    retaining the original create request. In capability auth mode, the client must also have retained
+    the capability returned by session creation.
 
     Args:
         session_id (UUID):
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -161,6 +184,7 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         session_id=session_id,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -172,15 +196,18 @@ async def asyncio(
     session_id: UUID,
     *,
     client: AuthenticatedClient | Client,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> ErrorResponse | SessionState | None:
     """Get isolated session state
 
-     Returns runtime status plus the creation parameters of the session. A stateless client that only has
-    a session ID (e.g. after a restart) can call this endpoint to rebuild a session handle without
-    needing to have retained the original create request.
+     Returns runtime status plus the creation parameters of the session. In legacy auth mode, a stateless
+    client that only has a session ID can call this endpoint to rebuild a session handle without
+    retaining the original create request. In capability auth mode, the client must also have retained
+    the capability returned by session creation.
 
     Args:
         session_id (UUID):
+        x_open_sandbox_session_capability (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -194,5 +221,6 @@ async def asyncio(
         await asyncio_detailed(
             session_id=session_id,
             client=client,
+            x_open_sandbox_session_capability=x_open_sandbox_session_capability,
         )
     ).parsed

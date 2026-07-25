@@ -43,8 +43,9 @@ class SessionState:
     """State of an isolated session. Runtime status fields (status, created_at, last_run_at, idle_remaining_seconds) are
     always present. Creation-parameter fields (profile, workspace, binds, share_net, env_passthrough, uid, gid,
     uid_mode, extra_writable, idle_timeout_seconds) echo the parameters used to create the session and let a stateless
-    client rebuild a session handle from just a session ID (e.g. after a client restart or in serverless workers). Older
-    execd builds may omit the creation-parameter fields; clients must tolerate them being absent.
+    client rebuild a session handle. A session ID is sufficient in legacy auth mode; capability auth mode also requires
+    the capability retained from session creation. Older execd builds may omit the creation-parameter fields; clients
+    must tolerate them being absent.
 
         Attributes:
             status (SessionStateStatus | Unset):

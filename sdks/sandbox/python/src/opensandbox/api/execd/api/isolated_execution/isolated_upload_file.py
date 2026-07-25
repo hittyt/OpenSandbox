@@ -25,15 +25,18 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...models.isolated_upload_file_body import IsolatedUploadFileBody
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     session_id: UUID,
     *,
     body: IsolatedUploadFileBody,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
+    if not isinstance(x_open_sandbox_session_capability, Unset):
+        headers["X-OpenSandbox-Session-Capability"] = x_open_sandbox_session_capability
 
     _kwargs: dict[str, Any] = {
         "method": "post",
@@ -52,6 +55,11 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
     if response.status_code == 200:
         response_200 = cast(Any, None)
         return response_200
+
+    if response.status_code == 403:
+        response_403 = ErrorResponse.from_dict(response.json())
+
+        return response_403
 
     if response.status_code == 503:
         response_503 = ErrorResponse.from_dict(response.json())
@@ -78,11 +86,13 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: IsolatedUploadFileBody,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Response[Any | ErrorResponse]:
     """Upload a file
 
     Args:
         session_id (UUID):
+        x_open_sandbox_session_capability (str | Unset):
         body (IsolatedUploadFileBody):
 
     Raises:
@@ -96,6 +106,7 @@ def sync_detailed(
     kwargs = _get_kwargs(
         session_id=session_id,
         body=body,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     )
 
     response = client.get_httpx_client().request(
@@ -110,11 +121,13 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     body: IsolatedUploadFileBody,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Any | ErrorResponse | None:
     """Upload a file
 
     Args:
         session_id (UUID):
+        x_open_sandbox_session_capability (str | Unset):
         body (IsolatedUploadFileBody):
 
     Raises:
@@ -129,6 +142,7 @@ def sync(
         session_id=session_id,
         client=client,
         body=body,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     ).parsed
 
 
@@ -137,11 +151,13 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: IsolatedUploadFileBody,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Response[Any | ErrorResponse]:
     """Upload a file
 
     Args:
         session_id (UUID):
+        x_open_sandbox_session_capability (str | Unset):
         body (IsolatedUploadFileBody):
 
     Raises:
@@ -155,6 +171,7 @@ async def asyncio_detailed(
     kwargs = _get_kwargs(
         session_id=session_id,
         body=body,
+        x_open_sandbox_session_capability=x_open_sandbox_session_capability,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -167,11 +184,13 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     body: IsolatedUploadFileBody,
+    x_open_sandbox_session_capability: str | Unset = UNSET,
 ) -> Any | ErrorResponse | None:
     """Upload a file
 
     Args:
         session_id (UUID):
+        x_open_sandbox_session_capability (str | Unset):
         body (IsolatedUploadFileBody):
 
     Raises:
@@ -187,5 +206,6 @@ async def asyncio(
             session_id=session_id,
             client=client,
             body=body,
+            x_open_sandbox_session_capability=x_open_sandbox_session_capability,
         )
     ).parsed

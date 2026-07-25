@@ -36,10 +36,15 @@ class IsolatedCreateSessionResponse:
     Attributes:
         session_id (UUID | Unset):
         created_at (datetime.datetime | Unset):
+        capability (str | Unset): Present only when session_auth_mode is capability and returned exactly once by session
+            creation. execd retains only a digest and never returns this value from get, list, or capabilities. The caller
+            must retain it and send it in X-OpenSandbox-Session-Capability on every later session-scoped request. The field
+            remains optional in the schema for compatibility with legacy and older execd versions.
     """
 
     session_id: UUID | Unset = UNSET
     created_at: datetime.datetime | Unset = UNSET
+    capability: str | Unset = _attrs_field(default=UNSET, repr=False)
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -51,6 +56,8 @@ class IsolatedCreateSessionResponse:
         if not isinstance(self.created_at, Unset):
             created_at = self.created_at.isoformat()
 
+        capability = self.capability
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -58,6 +65,8 @@ class IsolatedCreateSessionResponse:
             field_dict["session_id"] = session_id
         if created_at is not UNSET:
             field_dict["created_at"] = created_at
+        if capability is not UNSET:
+            field_dict["capability"] = capability
 
         return field_dict
 
@@ -78,9 +87,12 @@ class IsolatedCreateSessionResponse:
         else:
             created_at = isoparse(_created_at)
 
+        capability = d.pop("capability", UNSET)
+
         isolated_create_session_response = cls(
             session_id=session_id,
             created_at=created_at,
+            capability=capability,
         )
 
         isolated_create_session_response.additional_properties = d
