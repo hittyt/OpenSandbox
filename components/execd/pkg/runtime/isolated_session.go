@@ -298,9 +298,6 @@ func lifecycleStartupErrorAfterDrain(lifecycle isolation.WorkloadLifecycle) erro
 func (s *isolatedSession) stop() error {
 	s.stopping.Store(true)
 
-	var cleanupErr error
-	var processGroupKillErr error
-	processDone := false
 	hasProcess := s.cmd != nil && s.cmd.Process != nil
 	if s.lifecycle != nil {
 		// Deny an unreleased startup gate and mark the status stream as an
@@ -309,69 +306,19 @@ func (s *isolatedSession) stop() error {
 		// gate exits between Abort and the signal.
 		s.lifecycle.Abort()
 	}
+	processDone, processGroupKillErr := s.stopProcess(hasProcess)
 	if hasProcess {
-		select {
-		case <-s.doneCh:
-			processDone = true
-		default:
-		}
-		if !processDone {
-			// Signal while the session pipes and lifecycle gate are still
-			// open. Closing stdin first lets an interactive shell exit and be
-			// reaped just before a group signal, creating a stale-PID window.
-			if err := s.signalProcessGroupIfRunning(syscall.SIGKILL); err != nil &&
-				!errors.Is(err, syscall.ESRCH) {
-				processGroupKillErr = fmt.Errorf(
-					"kill isolated session process group: %w",
-					err,
-				)
-			}
-		}
-	}
-
-	if s.stdin != nil {
-		_ = s.stdin.Close()
-		s.stdin = nil
-	}
-	if s.stdout != nil {
-		_ = s.stdout.Close()
-		s.stdout = nil
-	}
-	if hasProcess {
-		if !processDone {
-			timer := time.NewTimer(isolatedSessionStopTimeout)
-			select {
-			case <-s.doneCh:
-				processDone = true
-				if !timer.Stop() {
-					<-timer.C
-				}
-			case <-timer.C:
-				cleanupErr = errors.Join(
-					cleanupErr,
-					processGroupKillErr,
-					ErrSessionTeardownTimeout,
-				)
-			}
-		}
 		if !processDone {
 			// lifecycle.Close may wait for its status-drain goroutine. Do not
 			// turn an unreapable workload into an unbounded session teardown.
-			return cleanupErr
-		}
-	} else if s.lifecycle != nil {
-		timer := time.NewTimer(isolatedSessionStopTimeout)
-		select {
-		case <-s.lifecycle.DrainDone():
-			if !timer.Stop() {
-				<-timer.C
-			}
-		case <-timer.C:
 			return errors.Join(
-				cleanupErr,
+				processGroupKillErr,
 				ErrSessionTeardownTimeout,
 			)
 		}
+	} else if s.lifecycle != nil &&
+		!waitForSessionDrain(s.lifecycle.DrainDone(), isolatedSessionStopTimeout) {
+		return ErrSessionTeardownTimeout
 	}
 	if processDone && processGroupKillErr != nil {
 		// A group signal can race a naturally exiting or already-zombie
@@ -380,12 +327,73 @@ func (s *isolatedSession) stop() error {
 		// transient signal error must not turn a successful delete into 500.
 		log.Warn("%v; session process and lifecycle are fully reaped", processGroupKillErr)
 	}
+	return s.closeLifecycle()
+}
+
+func (s *isolatedSession) stopProcess(hasProcess bool) (bool, error) {
+	processDone := false
+	if hasProcess {
+		select {
+		case <-s.doneCh:
+			processDone = true
+		default:
+		}
+	}
+
+	var processGroupKillErr error
+	if hasProcess && !processDone {
+		// Signal while the session pipes and lifecycle gate are still open.
+		// Closing stdin first lets an interactive shell exit and be reaped just
+		// before a group signal, creating a stale-PID window.
+		if err := s.signalProcessGroupIfRunning(syscall.SIGKILL); err != nil &&
+			!errors.Is(err, syscall.ESRCH) {
+			processGroupKillErr = fmt.Errorf(
+				"kill isolated session process group: %w",
+				err,
+			)
+		}
+	}
+
+	s.closeProcessPipes()
+	if hasProcess && !processDone {
+		processDone = waitForSessionDrain(s.doneCh, isolatedSessionStopTimeout)
+	}
+	return processDone, processGroupKillErr
+}
+
+func (s *isolatedSession) closeProcessPipes() {
+	if s.stdin != nil {
+		_ = s.stdin.Close()
+		s.stdin = nil
+	}
+	if s.stdout != nil {
+		_ = s.stdout.Close()
+		s.stdout = nil
+	}
+}
+
+func waitForSessionDrain(done <-chan struct{}, timeout time.Duration) bool {
+	timer := time.NewTimer(timeout)
+	select {
+	case <-done:
+		if !timer.Stop() {
+			<-timer.C
+		}
+		return true
+	case <-timer.C:
+		return false
+	}
+}
+
+func (s *isolatedSession) closeLifecycle() error {
 	if s.lifecycleMonitorDone != nil {
 		// DrainDone is closed before doneCh, so the monitor is guaranteed to
 		// make progress here. Waiting gives teardown ownership of the monitor
 		// and prevents it from outliving the session or test hooks it uses.
 		<-s.lifecycleMonitorDone
 	}
+
+	var cleanupErr error
 	if s.lifecycle != nil {
 		if err := s.lifecycle.Close(); err != nil {
 			cleanupErr = errors.Join(
