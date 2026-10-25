@@ -239,8 +239,6 @@ onUnmounted(() => {
               <span class="os-mini-cube" aria-hidden="true">◇</span> Open source
               <span class="os-dot-separator">·</span> Apache 2.0
             </span>
-            <span class="os-dot-separator" aria-hidden="true">·</span>
-            <span>Contributed by Alibaba</span>
           </div>
         </div>
         <div class="os-stage">

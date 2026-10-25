@@ -271,6 +271,6 @@ Tagged release images are signed keylessly with Cosign and include provenance at
 
 ## About
 
-OpenSandbox is an [open source project under the Linux Foundation](https://aaif.io/projects/opensandbox), contributed by Alibaba.
+OpenSandbox is a project of the [Agentic AI Foundation (AAIF)](https://aaif.io/projects/opensandbox).
 
 Licensed under the [Apache 2.0 License](LICENSE).
