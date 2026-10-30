@@ -2,7 +2,7 @@
 
 This document describes how OpenSandbox is governed today and how technical decisions are made in the project.
 
-It is intended to reflect the project's current open development practice. As OpenSandbox grows, this document may evolve to support a more formal governance model.
+The [Technical Charter](CHARTER.md) establishes the project's technical governance. This document describes the roles and working practices used to implement it and must remain consistent with the Charter.
 
 ## Goals
 
@@ -70,7 +70,7 @@ Maintainer responsibilities include:
 
 Project Maintainers are the maintainers responsible for repository-wide direction and final technical decisions when a matter cannot be resolved within normal component review.
 
-Until a dedicated `MAINTAINERS.md` is added, the fallback `*` owners in [`CODEOWNERS`](.github/CODEOWNERS) are treated as the public list of current Project Maintainers.
+Current Project Maintainers are listed in [MAINTAINERS.md](MAINTAINERS.md#project-maintainers-and-technical-steering-committee) and serve as the voting members of the Technical Steering Committee (TSC), as documented in [CONTRIBUTING.md](CONTRIBUTING.md#project-roles-and-technical-steering-committee). Keep this list synchronized with the fallback `*` owners in [`CODEOWNERS`](.github/CODEOWNERS). Component maintainership alone does not confer TSC membership or voting rights.
 
 Project Maintainers are responsible for:
 
@@ -144,13 +144,17 @@ OpenSandbox prefers **lazy consensus** for most technical decisions:
 - if affected maintainers agree, the change may proceed
 - if concerns are raised, they should be addressed in the PR, issue, or OSEP discussion
 
-If consensus cannot be reached in a reasonable time, Project Maintainers may use a simple majority vote of participating Project Maintainers.
+If consensus cannot be reached in a reasonable time, Project Maintainers may hold a TSC vote under [Section 3 of the Technical Charter](CHARTER.md#3-tsc-voting).
 
 Voting rules:
 
-- each participating Project Maintainer has one vote
+- each voting TSC member has one vote
+- a TSC meeting requires at least half of all voting members to be present before decisions can be made; a vote requires a majority of those in attendance
+- an electronic vote without a meeting requires a majority of all voting TSC members
 - maintainers should recuse themselves in case of direct conflicts of interest
 - if a vote ties, the proposal does not pass and the status quo remains
+- an unresolved TSC vote may be referred to the Series Manager as provided in the Charter
+- license exceptions and Charter amendments require the higher thresholds specified in Sections 7.c. and 8.a. of the Charter
 
 These general voting rules apply to technical disputes and design decisions. Maintainer nominations and promotions follow the dedicated electorate and approval thresholds specified in [Becoming a Maintainer](#becoming-a-maintainer).
 
@@ -230,7 +234,7 @@ In addition, candidates for **Project Maintainer** are expected to show:
 
 ### Nomination Process
 
-Advancement is proposed through a public pull request updating [`CODEOWNERS`](.github/CODEOWNERS):
+Advancement is proposed through a public pull request updating [`CODEOWNERS`](.github/CODEOWNERS) and [MAINTAINERS.md](MAINTAINERS.md):
 
 1. **Sponsorship**: Any existing Maintainer or Project Maintainer may sponsor a candidate by opening a nomination pull request against `CODEOWNERS` (adding the candidate to specific component paths for Maintainer, or to the fallback `*` list for Project Maintainer). Contributors interested in nomination may ask an existing Maintainer in a public issue or discussion.
 2. **Nomination PR Content**: The pull request description must specify the candidate's GitHub username, the target role and path scope, links to their contributions demonstrating readiness, the list of eligible voting Project Maintainers, and the required approval count.
@@ -245,14 +249,14 @@ Nominations are decided through public review and voting on the pull request:
 - **Approval Thresholds**:
   - **Maintainer (component scope)**: Requires affirmative approvals (pull request approval or explicit LGTM) from at least **one-third (1/3)** of the eligible Project Maintainers, rounded up to the nearest whole maintainer.
   - **Project Maintainer**: Requires affirmative approvals from at least **two-thirds (2/3)** of the eligible Project Maintainers, rounded up to the nearest whole maintainer.
-- **Voting Rules**: Approvals must be affirmative. Maintainers with direct conflicts of interest should recuse themselves. Abstentions, non-responses, or recusals do not count as approvals and do not lower the denominator. These nomination thresholds are separate from the simple majority of participating maintainers used for ordinary technical decisions.
+- **Voting Rules**: Approvals must be affirmative. Maintainers with direct conflicts of interest should recuse themselves. Abstentions, non-responses, or recusals do not count as approvals and do not lower the denominator. These nomination thresholds govern the role-specific advancement process; formal TSC votes follow [Consensus and Voting](#consensus-and-voting) and the Technical Charter.
 - **Public Objections**: Any objections or concerns should be discussed publicly in the pull request during the seven-day period. There is no unanimity requirement or individual veto beyond the specified vote.
 
 ### Decision and Onboarding
 
 - After the full seven calendar days have passed, a Project Maintainer verifies that the approval threshold has been met and that the candidate has explicitly accepted the nomination. The Project Maintainer then merges the pull request and coordinates the necessary scoped repository permissions.
 - If the threshold is not met, the pull request cannot be merged and is closed without promotion. There is no automatic promotion based solely on time or contribution counts.
-- [`CODEOWNERS`](.github/CODEOWNERS) remains the public record of maintainership.
+- Keep [MAINTAINERS.md](MAINTAINERS.md) and [`CODEOWNERS`](.github/CODEOWNERS) synchronized when recording the appointment.
 
 ## Maintainer Inactivity and Removal
 
@@ -271,3 +275,5 @@ Changes to this document should be made through a public pull request.
 Governance changes should receive review from Project Maintainers and should not be merged without giving maintainers and contributors a reasonable opportunity to comment.
 
 Substantial governance changes may be proposed through an OSEP or a dedicated governance discussion if maintainers believe broader review is warranted.
+
+Changes to the Technical Charter itself follow [Section 8 of the Charter](CHARTER.md#8-amendments): a two-thirds vote of the entire TSC and approval by LF Projects. Review or merge of a pull request alone does not amend the Charter.

@@ -568,6 +568,16 @@ Source code changes exceeding **2000 lines cannot be reviewed**. PRs above this 
 4. **Approval**: Once approved, a maintainer will merge your PR
 5. **Cleanup**: Delete your feature branch after merge
 
+## Project Roles and Technical Steering Committee
+
+OpenSandbox's governance is established by the [Technical Charter](CHARTER.md). The project uses the following roles under Sections 2.b., 2.c., and 2.e. of the Charter:
+
+- **Contributors** contribute code, documentation, reviews, or other technical artifacts to the project.
+- **Maintainers (component scope)** guide development and review contributions in the areas assigned to them in [CODEOWNERS](.github/CODEOWNERS). Component maintainership alone does not confer TSC membership or voting rights.
+- **Project Maintainers** are responsible for repository-wide stewardship and serve as the voting members of the Technical Steering Committee (TSC). The initial members are [@jwx0925](https://github.com/jwx0925), [@hittyt](https://github.com/hittyt), [@Pangjiping](https://github.com/Pangjiping), and [@ninan-nn](https://github.com/ninan-nn). The current roster is maintained in [MAINTAINERS.md](MAINTAINERS.md#project-maintainers-and-technical-steering-committee).
+
+The TSC oversees technical direction and governance under the Charter. Day-to-day component review remains with the relevant maintainers. The role-specific advancement process is documented in [GOVERNANCE.md](GOVERNANCE.md#becoming-a-maintainer); formal TSC voting follows [Section 3 of the Charter](CHARTER.md#3-tsc-voting).
+
 ## Contributor Advancement
 
 OpenSandbox welcomes contributors seeking long-term involvement and project stewardship. The project maintains an explicit advancement process from Contributor to Maintainer (component ownership) and Project Maintainer (repository-wide stewardship).
@@ -664,4 +674,14 @@ If you have suggestions for improving this contributing guide, please open an is
 
 ## License
 
-By contributing to OpenSandbox, you agree that your contributions will be licensed under the [Apache 2.0 License](LICENSE).
+Code contributions are licensed under the [Apache 2.0 License](LICENSE). Documentation contributions are received and made available under the [Creative Commons Attribution 4.0 International License](https://creativecommons.org/licenses/by/4.0/), as specified in [Section 7 of the Technical Charter](CHARTER.md#7-intellectual-property-policy). License exceptions require a two-thirds vote of the entire TSC under Section 7.c. of the Charter.
+
+### Developer Certificate of Origin
+
+All new inbound code contributions must include a [Developer Certificate of Origin](https://developercertificate.org/) (DCO) sign-off, as required by Section 7.b.ii. of the Technical Charter. Read the DCO before signing off. If you can make its certification, add the sign-off to each code contribution commit with:
+
+```bash
+git commit -s
+```
+
+This adds a `Signed-off-by: Your Name <your-email@example.com>` trailer to the commit message. Maintainers should verify the sign-offs on code contribution commits before merging; license-header checks do not verify DCO sign-offs.
